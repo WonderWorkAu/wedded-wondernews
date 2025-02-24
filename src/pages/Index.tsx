@@ -79,7 +79,7 @@ function Index() {
           const { data: serpData, error: serpError } = await supabase.functions.invoke('fetch-news', {
             method: 'POST',
             body: {
-              query: `${searchQuery} wedding`,
+              query: `${searchQuery} + Wedding`,  // Append "Wedding" to the search query
               numResults: 2
             }
           });
@@ -169,7 +169,7 @@ function Index() {
         <div className="flex items-center">
           <Input
             type="text"
-            placeholder="Search articles..."
+            placeholder="Search wedding articles..."
             value={searchQuery}
             onChange={handleSearchChange}
             className="mr-2"

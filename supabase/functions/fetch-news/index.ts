@@ -37,7 +37,6 @@ Deno.serve(async (req) => {
     const data = await response.json()
     console.log('SERP API response type:', typeof data)
     console.log('SERP API response keys:', Object.keys(data))
-    console.log('Raw SERP API response data:', JSON.stringify(data, null, 2))
 
     if (!data.news_results) {
       console.error('No news_results found in response:', JSON.stringify(data))
@@ -49,19 +48,7 @@ Deno.serve(async (req) => {
     const articles = data.news_results.map((result: any) => {
       console.log('-------------------')
       console.log(`Processing article: ${result.title}`)
-      console.log('All available fields for article:', Object.keys(result))
-      console.log('Raw article data:', JSON.stringify(result, null, 2))
-      
-      // Try different image fields in order of preference
-      const imageUrl = result.main_image || 
-                      result.images?.[0] ||
-                      result.original_image ||
-                      result.image ||
-                      result.thumbnail ||
-                      result.thumbnail_image ||
-                      null
-                      
-      console.log('Selected image URL:', imageUrl)
+      console.log('Image field available:', result.thumbnail || 'No thumbnail available')
       
       return {
         title: result.title,
@@ -69,14 +56,14 @@ Deno.serve(async (req) => {
         snippet: result.snippet,
         source: result.source,
         published: result.date,
-        image: imageUrl
+        image: result.thumbnail
       }
     })
 
     console.log('Successfully processed articles')
-    console.log('Final articles with images:', articles.map(a => ({
+    console.log('Articles with thumbnails:', articles.map(a => ({
       title: a.title,
-      image: a.image
+      image: a.image ? 'Yes' : 'No'
     })))
 
     return new Response(

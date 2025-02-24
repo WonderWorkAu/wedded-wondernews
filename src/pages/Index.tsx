@@ -5,12 +5,20 @@ import { ArticleCard } from "@/components/ArticleCard";
 import { supabase } from "@/integrations/supabase/client";
 
 const fetchNews = async (): Promise<NewsArticle[]> => {
+  console.log('Fetching news articles...');
   const { data, error } = await supabase.functions.invoke('fetch-news');
   
   if (error) {
+    console.error('Error fetching news:', error);
     throw new Error("Failed to fetch news");
   }
 
+  if (!data?.articles) {
+    console.error('No articles found in response');
+    throw new Error("No articles found");
+  }
+
+  console.log(`Received ${data.articles.length} articles`);
   return data.articles;
 };
 
@@ -25,7 +33,7 @@ const Index = () => {
       <div className="min-h-screen bg-ivory">
         <div className="container px-4 py-8">
           <div className="animate-pulse space-y-4">
-            {[...Array(6)].map((_, i) => (
+            {[...Array(10)].map((_, i) => (
               <div key={i} className="h-64 bg-gray-200 rounded-lg" />
             ))}
           </div>

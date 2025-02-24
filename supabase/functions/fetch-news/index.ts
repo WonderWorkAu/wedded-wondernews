@@ -11,29 +11,35 @@ Deno.serve(async (req) => {
   }
 
   try {
+    console.log('Starting news fetch from SERP API...')
+    
     // Construct the search query for wedding news
     const params = new URLSearchParams({
       q: 'wedding news celebrity marriage',
       tbm: 'nws', // News search
       api_key: SERP_API_KEY!,
-      num: '9' // Number of results
+      num: '10' // Updated to fetch 10 articles
     })
 
-    console.log('Fetching news from SERP API...')
     const response = await fetch(`${SERP_API_URL}?${params}`)
     const data = await response.json()
 
+    if (!data.news_results) {
+      console.error('No news results found in SERP API response')
+      throw new Error('No news results found')
+    }
+
     // Transform the SERP API response to match our NewsArticle interface
-    const articles = data.news_results?.map((result: any) => ({
+    const articles = data.news_results.map((result: any) => ({
       title: result.title,
       link: result.link,
       snippet: result.snippet,
       source: result.source,
       published: result.date,
       thumbnail: result.thumbnail
-    })) || []
+    }))
 
-    console.log(`Transformed ${articles.length} articles`)
+    console.log(`Successfully transformed ${articles.length} articles`)
 
     return new Response(
       JSON.stringify({
@@ -52,7 +58,8 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         error: 'Failed to fetch news',
-        status: 'error'
+        status: 'error',
+        message: error.message
       }),
       {
         headers: {

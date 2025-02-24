@@ -1,8 +1,68 @@
-
 import { corsHeaders } from '../_shared/cors.ts'
 
 const SERP_API_KEY = Deno.env.get('SERP_API_KEY')
 const SERP_API_URL = 'https://serpapi.com/search.json'
+
+// Function to extract the largest image from HTML content
+async function extractBestImage(url: string): Promise<string | null> {
+  try {
+    console.log('Fetching article content from:', url)
+    const response = await fetch(url)
+    const html = await response.text()
+    
+    // Extract all img tags
+    const imgRegex = /<img[^>]+src="([^">]+)"/g
+    const images: string[] = []
+    let match
+    
+    while ((match = imgRegex.exec(html)) !== null) {
+      const imgUrl = match[1]
+      if (
+        imgUrl.startsWith('http') && 
+        !imgUrl.includes('icon') &&
+        !imgUrl.includes('logo') &&
+        !imgUrl.includes('avatar') &&
+        imgUrl.match(/\.(jpg|jpeg|png|webp)/i)
+      ) {
+        images.push(imgUrl)
+      }
+    }
+
+    // Also try to find Open Graph image
+    const ogImageMatch = html.match(/<meta[^>]+property="og:image"[^>]+content="([^">]+)"/i)
+    if (ogImageMatch && ogImageMatch[1]) {
+      images.push(ogImageMatch[1])
+    }
+
+    if (images.length === 0) {
+      console.log('No suitable images found in article')
+      return null
+    }
+
+    // Try to determine image dimensions and quality
+    const imagePromises = images.map(async (imgUrl) => {
+      try {
+        const imgResponse = await fetch(imgUrl, { method: 'HEAD' })
+        const contentLength = imgResponse.headers.get('content-length')
+        const size = contentLength ? parseInt(contentLength) : 0
+        return { url: imgUrl, size }
+      } catch (error) {
+        console.log('Error checking image:', imgUrl, error)
+        return { url: imgUrl, size: 0 }
+      }
+    })
+
+    const imageResults = await Promise.all(imagePromises)
+    // Sort by file size (larger files typically mean higher quality)
+    imageResults.sort((a, b) => b.size - a.size)
+    
+    console.log('Found images:', imageResults.map(img => `${img.url} (${img.size} bytes)`).join('\n'))
+    return imageResults[0]?.url || null
+  } catch (error) {
+    console.error('Error extracting image from article:', error)
+    return null
+  }
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -21,7 +81,7 @@ Deno.serve(async (req) => {
       q: 'wedding news celebrity marriage',
       tbm: 'nws',
       api_key: SERP_API_KEY,
-      num: '10'
+      num: '15'  // Fetch more since some might fail image extraction
     })
 
     const url = `${SERP_API_URL}?${params}`
@@ -43,48 +103,49 @@ Deno.serve(async (req) => {
 
     console.log(`Found ${data.news_results.length} news results`)
     
-    const articles = data.news_results.map((result: any) => {
+    // Process articles sequentially to avoid too many concurrent requests
+    const articles = []
+    for (const result of data.news_results) {
       console.log('-------------------')
       console.log(`Processing article: ${result.title}`)
       
-      // Try to find the best quality image from multiple possible fields
-      let bestImage = null;
+      // Try to get high quality image from the article first
+      const articleImage = await extractBestImage(result.link)
       
-      // Check original_image first (highest quality)
-      if (result.original_image) {
-        console.log('Using original_image (highest quality)')
-        bestImage = result.original_image;
-      }
-      // Then try source_image
-      else if (result.source_image) {
-        console.log('Using source_image (high quality)')
-        bestImage = result.source_image;
-      }
-      // Then try large_image
-      else if (result.large_image) {
-        console.log('Using large_image (medium quality)')
-        bestImage = result.large_image;
-      }
-      // Finally fall back to thumbnail only if no better options exist
-      else if (result.thumbnail) {
-        console.log('Falling back to thumbnail (lowest quality)')
-        bestImage = result.thumbnail;
+      let bestImage = articleImage
+      
+      // Fall back to SERP images if article extraction failed
+      if (!bestImage) {
+        console.log('Falling back to SERP API images')
+        if (result.original_image) {
+          bestImage = result.original_image
+        } else if (result.source_image) {
+          bestImage = result.source_image
+        } else if (result.large_image) {
+          bestImage = result.large_image
+        }
       }
       
-      console.log('Selected image:', bestImage || 'No image found')
-      
-      return {
-        title: result.title,
-        link: result.link,
-        snippet: result.snippet,
-        source: result.source,
-        published: result.date,
-        image: bestImage
+      if (bestImage) {
+        articles.push({
+          title: result.title,
+          link: result.link,
+          snippet: result.snippet,
+          source: result.source,
+          published: result.date,
+          image: bestImage
+        })
+        
+        if (articles.length >= 10) {
+          break // Stop once we have 10 articles with good images
+        }
+      } else {
+        console.log('No suitable image found for article, skipping')
       }
-    })
+    }
 
     console.log('Successfully processed articles')
-    console.log('Articles with images:', articles.filter(a => a.image).length)
+    console.log('Articles with high quality images:', articles.length)
 
     return new Response(
       JSON.stringify({

@@ -10,24 +10,52 @@ interface ArticleCardProps {
 export const ArticleCard = ({ article }: ArticleCardProps) => {
   const [imageError, setImageError] = useState(false);
   const [imageSource, setImageSource] = useState<string | undefined>(article.image);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Reset error state when image source changes
+    console.log('Article data:', {
+      title: article.title,
+      originalImage: article.image,
+      currentSource: imageSource
+    });
+
+    setIsLoading(true);
     setImageError(false);
     
     if (article.image) {
       // For Google images, ensure we're requesting the highest quality
       if (article.image.includes('googleusercontent.com')) {
-        setImageSource(article.image.replace(/=.*$/, '=s1200-c'));
+        const newSource = article.image.replace(/=.*$/, '=s1200-c');
+        console.log('Setting Google image source:', newSource);
+        setImageSource(newSource);
       } else {
+        console.log('Setting regular image source:', article.image);
         setImageSource(article.image);
       }
+
+      // Preload the image
+      const img = new Image();
+      img.onload = () => {
+        console.log('Image loaded successfully:', article.title);
+        setIsLoading(false);
+      };
+      img.onerror = () => {
+        console.log('Image failed to load:', article.title);
+        setImageError(true);
+        setIsLoading(false);
+      };
+      img.src = article.image;
+    } else {
+      console.log('No image available for article:', article.title);
+      setImageError(true);
+      setIsLoading(false);
     }
   }, [article.image]);
 
   const handleImageError = () => {
-    console.log(`Image failed to load for article: ${article.title}`);
+    console.log(`Image failed to load for article: ${article.title}, URL: ${imageSource}`);
     setImageError(true);
+    setIsLoading(false);
   };
 
   // Properly encode the URL to prevent any routing issues
@@ -43,27 +71,28 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
               <img
                 src={imageSource}
                 alt={article.title}
-                className="absolute inset-0 w-full h-full object-cover"
-                style={{ 
-                  objectFit: 'cover',
-                  imageRendering: 'auto',
-                  WebkitBackfaceVisibility: 'hidden',
-                  MozBackfaceVisibility: 'hidden'
-                }}
+                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
+                  isLoading ? 'opacity-0' : 'opacity-100'
+                }`}
                 loading="eager"
                 onError={handleImageError}
-                crossOrigin="anonymous"
-                referrerPolicy="no-referrer"
-                draggable="false"
+                onLoad={() => setIsLoading(false)}
               />
+              {isLoading && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="animate-pulse bg-gray-200 w-full h-full" />
+                </div>
+              )}
             </div>
             <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
           </div>
         ) : (
           <div className="h-64 bg-gray-100 flex items-center justify-center group-hover:bg-gray-200 transition-colors duration-300">
-            <div className="text-center">
-              <span className="text-gray-400 font-medium block">Loading image...</span>
-              <span className="text-gray-300 text-sm">{article.source}</span>
+            <div className="text-center p-4">
+              <span className="text-gray-400 font-medium block">
+                {imageError ? 'Unable to load image' : 'Loading image...'}
+              </span>
+              <span className="text-gray-300 text-sm mt-2">{article.source}</span>
             </div>
           </div>
         )}

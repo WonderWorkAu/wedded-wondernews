@@ -36,7 +36,7 @@ async function fetchFromSerpApi(query: string, numResults: number) {
     num: numResults.toString(),
     hl: 'en',
     gl: 'us',
-    tbs: 'qdr:d,isz:l'  // Only large images from the past day
+    tbs: 'qdr:w,nws:1'  // News from the past week with images
   })
 
   const url = `${SERP_API_URL}?${params}`
@@ -48,11 +48,27 @@ async function fetchFromSerpApi(query: string, numResults: number) {
   }
 
   const data = await response.json()
+  console.log('SERP API response:', data);
+  
   if (!data.news_results) {
     throw new Error('No news results found in API response')
   }
 
-  return data.news_results
+  // Filter out results without images
+  const resultsWithImages = data.news_results.filter((result: any) => {
+    const hasImage = result.thumbnail || result.original_image || result.source_image || result.large_image;
+    if (!hasImage) {
+      console.log('Skipping article without image:', result.title);
+    }
+    return hasImage;
+  });
+
+  if (resultsWithImages.length === 0) {
+    throw new Error('No articles with images found');
+  }
+
+  console.log(`Found ${resultsWithImages.length} articles with images`);
+  return resultsWithImages;
 }
 
 async function processAndStoreArticles(newsResults: any[]) {
@@ -60,6 +76,7 @@ async function processAndStoreArticles(newsResults: any[]) {
   for (const result of newsResults) {
     try {
       const published = convertRelativeTime(result.date)
+      console.log('Processing article:', result.title);
       
       // Get the best quality image available
       let bestImage = null;
@@ -67,63 +84,53 @@ async function processAndStoreArticles(newsResults: any[]) {
       // Try each image source in order of quality
       if (result.original_image) {
         bestImage = result.original_image;
+        console.log('Using original image:', bestImage);
       } else if (result.source_image) {
         bestImage = result.source_image;
+        console.log('Using source image:', bestImage);
       } else if (result.large_image) {
         bestImage = result.large_image;
+        console.log('Using large image:', bestImage);
       } else if (result.thumbnail) {
         bestImage = result.thumbnail;
+        console.log('Using thumbnail:', bestImage);
       }
 
       // For Google images, request high quality version
       if (bestImage && bestImage.includes('googleusercontent.com')) {
+        const oldUrl = bestImage;
         bestImage = bestImage.replace(/=.*$/, '=s1200-c');
+        console.log('Optimized Google image from:', oldUrl, 'to:', bestImage);
       }
 
-      // If we still don't have an image, try to get one from the article
-      if (!bestImage) {
-        try {
-          const articleResponse = await fetch(result.link);
-          const html = await articleResponse.text();
-          
-          // Try og:image first
-          const ogImageMatch = html.match(/<meta[^>]+property="og:image"[^>]+content="([^">]+)"/i);
-          if (ogImageMatch && ogImageMatch[1] && ogImageMatch[1].startsWith('http')) {
-            bestImage = ogImageMatch[1];
-          }
-          
-          // If no og:image, try to find the first large image in the article
-          if (!bestImage) {
-            const imgMatches = html.match(/<img[^>]+src="([^">]+)"[^>]*>/g);
-            if (imgMatches) {
-              for (const imgTag of imgMatches) {
-                const srcMatch = imgTag.match(/src="([^">]+)"/);
-                if (srcMatch && srcMatch[1] && 
-                    srcMatch[1].startsWith('http') && 
-                    !srcMatch[1].includes('icon') && 
-                    !srcMatch[1].includes('logo')) {
-                  bestImage = srcMatch[1];
-                  break;
-                }
-              }
-            }
-          }
-        } catch (error) {
-          console.log('Failed to fetch article images:', error);
+      // Ensure the image URL is valid
+      try {
+        const imageResponse = await fetch(bestImage, { method: 'HEAD' });
+        if (!imageResponse.ok) {
+          console.log('Image URL not accessible:', bestImage);
+          bestImage = result.thumbnail; // Fallback to thumbnail
         }
+      } catch (error) {
+        console.log('Error checking image URL:', error);
+        bestImage = result.thumbnail; // Fallback to thumbnail
       }
 
-      // Use any image we found, don't skip articles without images
       const article = {
         title: result.title,
         link: result.link,
         snippet: result.snippet,
         source: result.source,
         published,
-        image: bestImage || null,  // Store null if no image found
+        image: bestImage,
         created_at: new Date().toISOString(),
         is_archived: false
       }
+
+      console.log('Final article data:', {
+        title: article.title,
+        image: article.image,
+        source: article.source
+      });
 
       // Store article in database
       const { error } = await supabase

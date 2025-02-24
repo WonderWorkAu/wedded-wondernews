@@ -45,14 +45,27 @@ Deno.serve(async (req) => {
 
     console.log(`Found ${data.news_results.length} news results`)
     
-    const articles = data.news_results.map((result: any) => ({
-      title: result.title,
-      link: result.link,
-      snippet: result.snippet,
-      source: result.source,
-      published: result.date,
-      image: result.original_image || result.large_image || null
-    }))
+    // Add detailed logging for image URLs
+    const articles = data.news_results.map((result: any) => {
+      console.log(`Processing article: ${result.title}`)
+      console.log('Available image fields:', {
+        thumbnail: result.thumbnail,
+        original_image: result.original_image,
+        large_image: result.large_image
+      })
+      
+      const imageUrl = result.thumbnail_image || result.original_image || result.large_image || null
+      console.log('Selected image URL:', imageUrl)
+      
+      return {
+        title: result.title,
+        link: result.link,
+        snippet: result.snippet,
+        source: result.source,
+        published: result.date,
+        image: imageUrl
+      }
+    })
 
     console.log('Successfully processed articles')
 

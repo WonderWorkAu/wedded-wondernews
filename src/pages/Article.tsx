@@ -15,7 +15,7 @@ interface ArticleContent {
 const fetchArticleContent = async (url: string): Promise<ArticleContent> => {
   console.log('Fetching article content for URL:', url);
   const { data, error } = await supabase.functions.invoke('fetch-article', {
-    params: { url }
+    body: { url }
   });
 
   if (error) {

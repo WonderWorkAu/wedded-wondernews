@@ -5,31 +5,36 @@ const SERP_API_KEY = Deno.env.get('SERP_API_KEY')
 const SERP_API_URL = 'https://serpapi.com/search.json'
 
 Deno.serve(async (req) => {
-  // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    console.log('Starting news fetch from SERP API...')
+    if (!SERP_API_KEY) {
+      console.error('SERP_API_KEY is not set')
+      throw new Error('SERP API key is not configured')
+    }
+
+    console.log('Starting news fetch from SERP API with key:', SERP_API_KEY.substring(0, 5) + '...')
     
-    // Construct the search query for wedding news
     const params = new URLSearchParams({
       q: 'wedding news celebrity marriage',
-      tbm: 'nws', // News search
-      api_key: SERP_API_KEY!,
-      num: '10' // Updated to fetch 10 articles
+      tbm: 'nws',
+      api_key: SERP_API_KEY,
+      num: '10'
     })
 
+    console.log('Making request to SERP API...')
     const response = await fetch(`${SERP_API_URL}?${params}`)
     const data = await response.json()
+    console.log('SERP API response status:', response.status)
+    console.log('SERP API raw response:', JSON.stringify(data))
 
     if (!data.news_results) {
       console.error('No news results found in SERP API response')
-      throw new Error('No news results found')
+      throw new Error('No news results found in API response')
     }
 
-    // Transform the SERP API response to match our NewsArticle interface
     const articles = data.news_results.map((result: any) => ({
       title: result.title,
       link: result.link,
@@ -54,12 +59,15 @@ Deno.serve(async (req) => {
       }
     )
   } catch (error) {
-    console.error('Error fetching news:', error)
+    console.error('Error in fetch-news function:', error.message)
+    console.error('Full error:', error)
+    
     return new Response(
       JSON.stringify({
         error: 'Failed to fetch news',
         status: 'error',
-        message: error.message
+        message: error.message,
+        details: error.toString()
       }),
       {
         headers: {

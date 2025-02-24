@@ -70,15 +70,17 @@ const Article = () => {
     queryFn: () => fetchArticleContent(decodedUrl),
     enabled: !!decodedUrl,
     retry: 1,
-    onError: (error) => {
-      console.error('Error loading article:', error);
-      toast({
-        title: "Error loading article",
-        description: "Unable to load the article content. Please try again later.",
-        variant: "destructive",
-      });
-      navigate('/');
-    },
+    meta: {
+      onError: () => {
+        console.error('Error loading article:', error);
+        toast({
+          title: "Error loading article",
+          description: "Unable to load the article content. Please try again later.",
+          variant: "destructive",
+        });
+        navigate('/');
+      }
+    }
   });
 
   if (isLoading) {

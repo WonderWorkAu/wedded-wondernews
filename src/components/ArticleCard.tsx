@@ -14,36 +14,38 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
   const [imageSource, setImageSource] = useState<string | null>(null);
 
   useEffect(() => {
-    console.log('Article data:', {
-      title: article.title,
-      originalImage: article.image,
-      content: article.content ? 'Has content' : 'No content'
-    });
-
-    // Reset states
     setImageError(false);
 
-    // Function to extract first image from article content
+    // Function to validate image URL
+    const isValidImageUrl = (url: string): boolean => {
+      return url && 
+        (url.startsWith('http://') || url.startsWith('https://')) && 
+        !url.includes('data:') &&
+        !url.includes('placeholder') &&
+        !url.includes('undefined');
+    };
+
+    // Function to extract image from content
     const extractImageFromContent = (content: string): string | null => {
       try {
         const parser = new DOMParser();
         const doc = parser.parseFromString(content, 'text/html');
-        const firstImage = doc.querySelector('img');
-        const src = firstImage?.src;
+        const images = Array.from(doc.querySelectorAll('img'));
         
-        // Validate the image URL
-        if (src && !src.startsWith('data:') && (src.startsWith('http://') || src.startsWith('https://'))) {
-          console.log('Found valid image in content:', src);
-          return src;
-        }
-        return null;
+        // Find first valid image
+        const validImage = images.find(img => {
+          const src = img.getAttribute('src');
+          return src && isValidImageUrl(src) && !src.includes('badge') && !src.includes('icon');
+        });
+
+        return validImage?.getAttribute('src') || null;
       } catch (error) {
         console.error('Error parsing content:', error);
         return null;
       }
     };
 
-    // Try to get image from article content first
+    // Try to get image from content first
     if (article.content) {
       const contentImage = extractImageFromContent(article.content);
       if (contentImage) {
@@ -52,52 +54,46 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
       }
     }
 
-    // Fallback to article.image if available
-    if (article.image) {
+    // Fallback to article.image
+    if (article.image && isValidImageUrl(article.image)) {
+      // Enhance Google image URLs if present
       if (article.image.includes('googleusercontent.com')) {
-        const newSource = article.image.replace(/=.*$/, '=s1200');
-        console.log('Using enhanced Google image:', newSource);
-        setImageSource(newSource);
+        setImageSource(article.image.replace(/=.*$/, '=s1200'));
       } else {
-        console.log('Using original image:', article.image);
         setImageSource(article.image);
       }
     } else {
-      console.log('No image available for article:', article.title);
       setImageError(true);
     }
   }, [article.image, article.content]);
 
   const handleImageError = () => {
-    console.log(`Image failed to load for article: ${article.title}`);
     setImageError(true);
   };
 
-  // Properly encode the URL to prevent any routing issues
-  const encodedUrl = encodeURIComponent(article.link);
-  
   return (
-    <Link to={`/article/${encodedUrl}`}>
+    <Link to={`/article/${encodeURIComponent(article.link)}`}>
       <Card className="group overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
-        <div className="relative h-64 overflow-hidden bg-gray-100">
+        <div className="relative h-48 overflow-hidden bg-gray-100">
           {imageSource && !imageError ? (
-            <img
-              src={imageSource}
-              alt={article.title}
-              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-              onError={handleImageError}
-              loading="eager"
-              crossOrigin="anonymous"
-              referrerPolicy="no-referrer"
-            />
+            <div className="w-full h-full flex items-center justify-center bg-gray-100">
+              <img
+                src={imageSource}
+                alt={article.title}
+                className="h-full w-auto max-w-none"
+                onError={handleImageError}
+                loading="eager"
+                crossOrigin="anonymous"
+                referrerPolicy="no-referrer"
+              />
+            </div>
           ) : (
             <div className="h-full flex items-center justify-center bg-gray-100 group-hover:bg-gray-200 transition-colors duration-300">
               <div className="text-center p-4">
                 <ImageOff className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                <span className="text-gray-500 font-medium block">
+                <span className="text-gray-500 font-medium">
                   {imageError ? 'Unable to load image' : 'No image available'}
                 </span>
-                <span className="text-gray-400 text-sm mt-2">{article.source}</span>
               </div>
             </div>
           )}

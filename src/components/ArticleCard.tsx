@@ -29,7 +29,7 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
               onError={handleImageError}
               style={{ 
                 objectFit: 'cover',
-                imageRendering: 'high-quality'
+                imageRendering: 'crisp-edges'
               }}
             />
           </div>
@@ -48,3 +48,4 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
     </Link>
   );
 };
+

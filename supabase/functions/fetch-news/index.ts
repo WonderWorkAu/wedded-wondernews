@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
       snippet: result.snippet,
       source: result.source,
       published: result.date,
-      thumbnail: result.thumbnail
+      image: result.original_image || result.large_image || null
     }))
 
     console.log('Successfully processed articles')

@@ -5,7 +5,7 @@ export interface NewsArticle {
   snippet: string;
   source: string;
   published: string;
-  thumbnail?: string;
+  image?: string;
   content?: string;
 }
 

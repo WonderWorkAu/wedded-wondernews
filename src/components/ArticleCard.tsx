@@ -19,10 +19,10 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
   return (
     <Link to={`/article/${encodeURIComponent(article.link)}`}>
       <Card className="overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
-        {article.thumbnail && !imageError && (
+        {article.image && !imageError && (
           <div className="relative h-48 overflow-hidden bg-gray-100">
             <img
-              src={article.thumbnail}
+              src={article.image}
               alt={article.title}
               className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 hover:scale-105"
               loading="lazy"
@@ -34,7 +34,6 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
                 transform: 'translateZ(0)',
                 willChange: 'transform',
               }}
-              
             />
             <div className="absolute inset-0 bg-black/5 pointer-events-none" />
           </div>

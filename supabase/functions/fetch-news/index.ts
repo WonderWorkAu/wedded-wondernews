@@ -52,22 +52,22 @@ Deno.serve(async (req) => {
       
       // Check original_image first (highest quality)
       if (result.original_image) {
-        console.log('Found original_image')
+        console.log('Using original_image (highest quality)')
         bestImage = result.original_image;
-      }
-      // Then try large_image
-      else if (result.large_image) {
-        console.log('Found large_image')
-        bestImage = result.large_image;
       }
       // Then try source_image
       else if (result.source_image) {
-        console.log('Found source_image')
+        console.log('Using source_image (high quality)')
         bestImage = result.source_image;
       }
-      // Finally fall back to thumbnail
+      // Then try large_image
+      else if (result.large_image) {
+        console.log('Using large_image (medium quality)')
+        bestImage = result.large_image;
+      }
+      // Finally fall back to thumbnail only if no better options exist
       else if (result.thumbnail) {
-        console.log('Falling back to thumbnail')
+        console.log('Falling back to thumbnail (lowest quality)')
         bestImage = result.thumbnail;
       }
       
@@ -84,10 +84,7 @@ Deno.serve(async (req) => {
     })
 
     console.log('Successfully processed articles')
-    console.log('Articles with images:', articles.map(a => ({
-      title: a.title,
-      image: a.image ? 'Yes' : 'No'
-    })))
+    console.log('Articles with images:', articles.filter(a => a.image).length)
 
     return new Response(
       JSON.stringify({

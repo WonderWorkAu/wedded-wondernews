@@ -47,9 +47,25 @@ Deno.serve(async (req) => {
     
     const articles = data.news_results.map((result: any) => {
       console.log(`Processing article: ${result.title}`)
+      console.log('All available fields for article:', Object.keys(result))
+      console.log('All available image fields:', {
+        thumbnail: result.thumbnail,
+        thumbnail_image: result.thumbnail_image,
+        image: result.image,
+        original_image: result.original_image,
+        images: result.images,
+        main_image: result.main_image
+      })
       
-      // Try all possible image fields
-      const imageUrl = result.thumbnail || result.thumbnail_image || result.image || result.original_image || null
+      // Try different image fields in order of preference
+      const imageUrl = result.main_image || 
+                      result.images?.[0] ||
+                      result.original_image ||
+                      result.image ||
+                      result.thumbnail ||
+                      result.thumbnail_image ||
+                      null
+                      
       console.log('Selected image URL:', imageUrl)
       
       return {

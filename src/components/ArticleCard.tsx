@@ -32,6 +32,7 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
                 className="w-full h-full object-cover"
                 loading="lazy"
                 onError={handleImageError}
+                referrerPolicy="no-referrer"
                 draggable="false"
               />
             </div>

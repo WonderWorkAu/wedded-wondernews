@@ -1,3 +1,4 @@
+
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Home } from "lucide-react";
@@ -25,10 +26,34 @@ const fetchArticleContent = async (url: string): Promise<ArticleContent> => {
 
     if (existingArticle && !dbError) {
       console.log('Found article in database:', existingArticle);
+      
+      // If we have the article but no content, try to fetch it
       if (!existingArticle.content) {
-        console.log('Article found but no content available');
-        throw new Error('Article content not available');
+        console.log('Article found but fetching fresh content');
+        const { data, error } = await supabase.functions.invoke('fetch-article', {
+          body: { url }
+        });
+
+        if (error) throw error;
+        if (!data || !data.content) throw new Error('Unable to load article content');
+
+        // Update the article content in the database
+        const { error: updateError } = await supabase
+          .from('news_articles')
+          .update({ content: data.content })
+          .eq('link', url);
+
+        if (updateError) console.error('Error updating article content:', updateError);
+
+        return {
+          title: existingArticle.title || data.title || 'Untitled Article',
+          content: data.content,
+          siteName: existingArticle.source || data.siteName,
+          excerpt: existingArticle.snippet || data.excerpt,
+          byline: data.byline,
+        };
       }
+
       return {
         title: existingArticle.title || 'Untitled Article',
         content: existingArticle.content,
@@ -37,21 +62,14 @@ const fetchArticleContent = async (url: string): Promise<ArticleContent> => {
       };
     }
 
-    // If not in database or no content, fetch from edge function
+    // If not in database, fetch from edge function
     console.log('Fetching article content from edge function');
     const { data, error } = await supabase.functions.invoke('fetch-article', {
       body: { url }
     });
 
-    if (error) {
-      console.error('Error fetching article:', error);
-      throw error;
-    }
-
-    if (!data || !data.content) {
-      console.error('No content received from fetch-article function');
-      throw new Error('Unable to load article content');
-    }
+    if (error) throw error;
+    if (!data || !data.content) throw new Error('Unable to load article content');
 
     console.log('Successfully received article content');
     return data;

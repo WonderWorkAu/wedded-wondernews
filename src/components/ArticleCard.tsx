@@ -1,7 +1,9 @@
+
 import { NewsArticle } from "@/types/news";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader } from "./ui/card";
 import { useState, useEffect } from "react";
+import { ImageOff } from "lucide-react";
 
 interface ArticleCardProps {
   article: NewsArticle;
@@ -9,7 +11,7 @@ interface ArticleCardProps {
 
 export const ArticleCard = ({ article }: ArticleCardProps) => {
   const [imageError, setImageError] = useState(false);
-  const [imageSource, setImageSource] = useState<string | undefined>(article.image);
+  const [imageSource, setImageSource] = useState<string | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -21,7 +23,26 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
 
     setIsLoading(true);
     setImageError(false);
+
+    // Function to extract first image from article content
+    const extractImageFromContent = (content: string): string | undefined => {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(content, 'text/html');
+      const firstImage = doc.querySelector('img');
+      return firstImage?.src;
+    };
     
+    // Try to get image from article first
+    if (article.content) {
+      const contentImage = extractImageFromContent(article.content);
+      if (contentImage && !contentImage.startsWith('data:')) {
+        console.log('Using image from article content:', contentImage);
+        setImageSource(contentImage);
+        return;
+      }
+    }
+    
+    // Fallback to article.image if content image not found
     if (article.image) {
       // For Google images, ensure we're requesting the highest quality
       if (article.image.includes('googleusercontent.com')) {
@@ -32,26 +53,30 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
         console.log('Setting regular image source:', article.image);
         setImageSource(article.image);
       }
-
-      // Preload the image
-      const img = new Image();
-      img.onload = () => {
-        console.log('Image loaded successfully:', article.title);
-        setIsLoading(false);
-      };
-      img.onerror = () => {
-        console.log('Image failed to load:', article.title);
-        setImageError(true);
-        setIsLoading(false);
-      };
-      img.src = article.image;
-      img.crossOrigin = 'anonymous';  
     } else {
       console.log('No image available for article:', article.title);
       setImageError(true);
       setIsLoading(false);
     }
-  }, [article.image]);
+  }, [article.image, article.content]);
+
+  useEffect(() => {
+    if (imageSource) {
+      const img = new Image();
+      img.onload = () => {
+        console.log('Image loaded successfully:', imageSource);
+        setIsLoading(false);
+        setImageError(false);
+      };
+      img.onerror = () => {
+        console.log('Image failed to load:', imageSource);
+        setImageError(true);
+        setIsLoading(false);
+      };
+      img.src = imageSource;
+      img.crossOrigin = 'anonymous';
+    }
+  }, [imageSource]);
 
   const handleImageError = () => {
     console.log(`Image failed to load for article: ${article.title}, URL: ${imageSource}`);
@@ -61,13 +86,12 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
 
   // Properly encode the URL to prevent any routing issues
   const encodedUrl = encodeURIComponent(article.link);
-  console.log('Creating link for article:', article.title, 'with URL:', article.link);
-
+  
   return (
     <Link to={`/article/${encodedUrl}`}>
       <Card className="group overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
-        {imageSource && !imageError ? (
-          <div className="relative h-64 overflow-hidden bg-gray-100">
+        <div className="relative h-64 overflow-hidden bg-gray-100">
+          {imageSource && !imageError ? (
             <div className="absolute inset-0">
               <img
                 src={imageSource}
@@ -78,8 +102,8 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
                 loading="eager"
                 onError={handleImageError}
                 onLoad={() => setIsLoading(false)}
-                crossOrigin="anonymous"  
-                referrerPolicy="no-referrer"  
+                crossOrigin="anonymous"
+                referrerPolicy="no-referrer"
               />
               {isLoading && (
                 <div className="absolute inset-0 flex items-center justify-center">
@@ -87,18 +111,19 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
                 </div>
               )}
             </div>
-            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-          </div>
-        ) : (
-          <div className="h-64 bg-gray-100 flex items-center justify-center group-hover:bg-gray-200 transition-colors duration-300">
-            <div className="text-center p-4">
-              <span className="text-gray-400 font-medium block">
-                {imageError ? 'Unable to load image' : 'Loading image...'}
-              </span>
-              <span className="text-gray-300 text-sm mt-2">{article.source}</span>
+          ) : (
+            <div className="h-full flex items-center justify-center bg-gray-100 group-hover:bg-gray-200 transition-colors duration-300">
+              <div className="text-center p-4">
+                <ImageOff className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                <span className="text-gray-500 font-medium block">
+                  {imageError ? 'Unable to load image' : 'No image available'}
+                </span>
+                <span className="text-gray-400 text-sm mt-2">{article.source}</span>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+        </div>
         <CardHeader className="font-playfair text-xl font-semibold line-clamp-2">
           {article.title}
         </CardHeader>

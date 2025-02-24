@@ -2,7 +2,7 @@
 import { NewsArticle } from "@/types/news";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader } from "./ui/card";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface ArticleCardProps {
   article: NewsArticle;
@@ -10,6 +10,21 @@ interface ArticleCardProps {
 
 export const ArticleCard = ({ article }: ArticleCardProps) => {
   const [imageError, setImageError] = useState(false);
+  const [imageSource, setImageSource] = useState<string | undefined>(article.image);
+
+  useEffect(() => {
+    // Try to extract an image from the article content if available
+    if (article.content && (!imageSource || imageError)) {
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = article.content;
+      const firstImage = tempDiv.querySelector('img');
+      const imageSrc = firstImage?.getAttribute('src');
+      if (imageSrc && !imageSrc.startsWith('data:')) {
+        setImageSource(imageSrc);
+        setImageError(false);
+      }
+    }
+  }, [article.content, imageSource, imageError]);
 
   const handleImageError = () => {
     console.log(`Image failed to load for article: ${article.title}`);
@@ -23,11 +38,11 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
   return (
     <Link to={`/article/${encodedUrl}`}>
       <Card className="group overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
-        {article.image && !imageError ? (
+        {imageSource && !imageError ? (
           <div className="relative h-48 overflow-hidden bg-gray-100">
             <div className="absolute inset-0 flex items-center justify-center">
               <img
-                src={article.image}
+                src={imageSource}
                 alt={article.title}
                 className="w-full h-full object-cover"
                 loading="lazy"
@@ -61,3 +76,4 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
     </Link>
   );
 };
+

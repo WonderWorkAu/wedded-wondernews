@@ -1,4 +1,3 @@
-
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Home } from "lucide-react";
@@ -11,7 +10,41 @@ interface ArticleContent {
   excerpt?: string;
   byline?: string;
   siteName?: string;
+  image?: string;
 }
+
+const extractMainImage = (content: string): string | undefined => {
+  if (!content) return undefined;
+  
+  // Create a temporary DOM element to parse the HTML
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = content;
+  
+  // Look for image elements in the content
+  const images = tempDiv.getElementsByTagName('img');
+  
+  // Find the first image that's likely to be a main article image
+  // by checking size attributes or looking for specific classes
+  for (const img of Array.from(images)) {
+    const src = img.getAttribute('src');
+    if (!src) continue;
+    
+    // Skip small images (likely icons) and data URLs
+    if (src.startsWith('data:')) continue;
+    
+    // Get image dimensions if available
+    const width = parseInt(img.getAttribute('width') || '0');
+    const height = parseInt(img.getAttribute('height') || '0');
+    
+    // If the image is large enough, it's probably a main image
+    if (width > 300 || height > 200) {
+      return src;
+    }
+  }
+  
+  // If we haven't found a suitable image, return the first image found
+  return images[0]?.getAttribute('src');
+};
 
 const fetchArticleContent = async (url: string): Promise<ArticleContent> => {
   console.log('Fetching article content for URL:', url);
@@ -45,20 +78,26 @@ const fetchArticleContent = async (url: string): Promise<ArticleContent> => {
 
         if (updateError) console.error('Error updating article content:', updateError);
 
+        const mainImage = extractMainImage(data.content);
+
         return {
           title: existingArticle.title || data.title || 'Untitled Article',
           content: data.content,
           siteName: existingArticle.source || data.siteName,
           excerpt: existingArticle.snippet || data.excerpt,
           byline: data.byline,
+          image: mainImage,
         };
       }
+
+      const mainImage = extractMainImage(existingArticle.content);
 
       return {
         title: existingArticle.title || 'Untitled Article',
         content: existingArticle.content,
         siteName: existingArticle.source,
         excerpt: existingArticle.snippet,
+        image: mainImage,
       };
     }
 
@@ -71,8 +110,13 @@ const fetchArticleContent = async (url: string): Promise<ArticleContent> => {
     if (error) throw error;
     if (!data || !data.content) throw new Error('Unable to load article content');
 
+    const mainImage = extractMainImage(data.content);
+
     console.log('Successfully received article content');
-    return data;
+    return {
+      ...data,
+      image: mainImage,
+    };
   } catch (error) {
     console.error('Error in fetchArticleContent:', error);
     throw error;

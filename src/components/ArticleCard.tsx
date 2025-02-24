@@ -24,11 +24,10 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
             <img
               src={article.image}
               alt={article.title}
-              className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+              className="absolute inset-0 w-full h-full object-contain"
               loading="lazy"
               onError={handleImageError}
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
           </div>
         ) : (
           <div className="h-48 bg-gray-100 flex items-center justify-center">

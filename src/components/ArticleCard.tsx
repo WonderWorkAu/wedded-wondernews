@@ -29,9 +29,14 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
               onError={handleImageError}
               style={{ 
                 objectFit: 'cover',
-                imageRendering: 'crisp-edges'
+                imageRendering: 'crisp-edges',
+                backfaceVisibility: 'hidden',
+                transform: 'translateZ(0)',
+                willChange: 'transform',
               }}
+              
             />
+            <div className="absolute inset-0 bg-black/5 pointer-events-none" />
           </div>
         )}
         <CardHeader className="font-playfair text-xl font-semibold">
@@ -48,4 +53,3 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
     </Link>
   );
 };
-

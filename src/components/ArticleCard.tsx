@@ -19,23 +19,25 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
     <Link to={`/article/${encodeURIComponent(article.link)}`}>
       <Card className="group overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
         {article.image && !imageError ? (
-          <div className="relative h-48 overflow-hidden bg-gray-100">
-            <div className="absolute inset-0 flex items-center justify-center">
+          <div className="relative h-64 overflow-hidden bg-gray-100">
+            <div className="absolute inset-0">
               <img
                 src={article.image}
                 alt={article.title}
-                className="w-full h-full object-cover"
-                loading="lazy"
+                className="absolute inset-0 w-full h-full object-cover transform hover:scale-105 transition-transform duration-300"
+                style={{ 
+                  objectFit: 'cover',
+                  imageRendering: 'high-quality'
+                }}
+                loading="eager"
                 onError={handleImageError}
                 draggable="false"
-                decoding="async"
-                fetchPriority="high"
               />
             </div>
             <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
           </div>
         ) : (
-          <div className="h-48 bg-gray-100 flex items-center justify-center group-hover:bg-gray-200 transition-colors duration-300">
+          <div className="h-64 bg-gray-100 flex items-center justify-center group-hover:bg-gray-200 transition-colors duration-300">
             <span className="text-gray-400 font-medium">No image available</span>
           </div>
         )}

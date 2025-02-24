@@ -1,4 +1,3 @@
-
 import { corsHeaders } from '../_shared/cors.ts'
 
 const SERP_API_KEY = Deno.env.get('SERP_API_KEY')
@@ -21,7 +20,10 @@ Deno.serve(async (req) => {
       q: 'wedding news celebrity marriage',
       tbm: 'nws',
       api_key: SERP_API_KEY,
-      num: '10'
+      num: '10',
+      hl: 'en',
+      gl: 'us',
+      tbs: 'qdr:d,simg:2'  // High quality images from the past day
     })
 
     const url = `${SERP_API_URL}?${params}`
@@ -50,25 +52,39 @@ Deno.serve(async (req) => {
       // Try to find the best quality image from multiple possible fields
       let bestImage = null;
       
-      // Check original_image first (highest quality)
-      if (result.original_image) {
-        console.log('Using original_image (highest quality)')
+      // Check for HD or high-res images first
+      if (result.original_image && result.original_image.includes('=s0')) {
+        console.log('Using HD original_image')
         bestImage = result.original_image;
       }
-      // Then try source_image
+      // Then try original_image with size parameter for better quality
+      else if (result.original_image) {
+        console.log('Using original_image with size parameter')
+        bestImage = result.original_image.includes('=') 
+          ? result.original_image.replace(/=.*$/, '=s1200') 
+          : `${result.original_image}=s1200`;
+      }
+      // Then try source_image with size parameter
       else if (result.source_image) {
-        console.log('Using source_image (high quality)')
-        bestImage = result.source_image;
+        console.log('Using source_image with size parameter')
+        bestImage = result.source_image.includes('=') 
+          ? result.source_image.replace(/=.*$/, '=s1200')
+          : `${result.source_image}=s1200`;
       }
       // Then try large_image
       else if (result.large_image) {
-        console.log('Using large_image (medium quality)')
+        console.log('Using large_image')
         bestImage = result.large_image;
       }
       // Finally fall back to thumbnail only if no better options exist
       else if (result.thumbnail) {
-        console.log('Falling back to thumbnail (lowest quality)')
+        console.log('Using thumbnail as fallback')
         bestImage = result.thumbnail;
+      }
+      
+      // If the image URL is from Google's servers, ensure we request the highest quality
+      if (bestImage && bestImage.includes('googleusercontent.com')) {
+        bestImage = bestImage.replace(/=.*$/, '=s1200');
       }
       
       console.log('Selected image:', bestImage || 'No image found')

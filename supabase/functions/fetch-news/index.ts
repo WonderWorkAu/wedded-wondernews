@@ -37,6 +37,7 @@ Deno.serve(async (req) => {
     const data = await response.json()
     console.log('SERP API response type:', typeof data)
     console.log('SERP API response keys:', Object.keys(data))
+    console.log('Raw SERP API response data:', JSON.stringify(data, null, 2))
 
     if (!data.news_results) {
       console.error('No news_results found in response:', JSON.stringify(data))
@@ -46,16 +47,10 @@ Deno.serve(async (req) => {
     console.log(`Found ${data.news_results.length} news results`)
     
     const articles = data.news_results.map((result: any) => {
+      console.log('-------------------')
       console.log(`Processing article: ${result.title}`)
       console.log('All available fields for article:', Object.keys(result))
-      console.log('All available image fields:', {
-        thumbnail: result.thumbnail,
-        thumbnail_image: result.thumbnail_image,
-        image: result.image,
-        original_image: result.original_image,
-        images: result.images,
-        main_image: result.main_image
-      })
+      console.log('Raw article data:', JSON.stringify(result, null, 2))
       
       // Try different image fields in order of preference
       const imageUrl = result.main_image || 
@@ -79,6 +74,10 @@ Deno.serve(async (req) => {
     })
 
     console.log('Successfully processed articles')
+    console.log('Final articles with images:', articles.map(a => ({
+      title: a.title,
+      image: a.image
+    })))
 
     return new Response(
       JSON.stringify({

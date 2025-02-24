@@ -2,13 +2,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { NewsArticle } from "@/types/news";
 import { ArticleCard } from "@/components/ArticleCard";
+import { supabase } from "@/integrations/supabase/client";
 
 const fetchNews = async (): Promise<NewsArticle[]> => {
-  const response = await fetch("/api/news");
-  if (!response.ok) {
+  const { data, error } = await supabase.functions.invoke('fetch-news');
+  
+  if (error) {
     throw new Error("Failed to fetch news");
   }
-  const data = await response.json();
+
   return data.articles;
 };
 

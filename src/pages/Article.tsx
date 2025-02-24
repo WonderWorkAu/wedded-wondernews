@@ -1,4 +1,3 @@
-
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Home } from "lucide-react";
@@ -22,19 +21,24 @@ const fetchArticleContent = async (url: string): Promise<ArticleContent> => {
       .from('news_articles')
       .select('*')
       .eq('link', url)
-      .single();
+      .maybeSingle();
 
     if (existingArticle && !dbError) {
-      console.log('Found article in database:', existingArticle.title);
+      console.log('Found article in database:', existingArticle);
+      if (!existingArticle.content) {
+        console.log('Article found but no content available');
+        throw new Error('Article content not available');
+      }
       return {
-        title: existingArticle.title,
-        content: existingArticle.content || '',
+        title: existingArticle.title || 'Untitled Article',
+        content: existingArticle.content,
         siteName: existingArticle.source,
         excerpt: existingArticle.snippet,
       };
     }
 
-    // If not in database, fetch from edge function
+    // If not in database or no content, fetch from edge function
+    console.log('Fetching article content from edge function');
     const { data, error } = await supabase.functions.invoke('fetch-article', {
       body: { url }
     });
@@ -44,12 +48,12 @@ const fetchArticleContent = async (url: string): Promise<ArticleContent> => {
       throw error;
     }
 
-    if (!data) {
-      console.error('No data returned from fetch-article function');
-      throw new Error('No article data received');
+    if (!data || !data.content) {
+      console.error('No content received from fetch-article function');
+      throw new Error('Unable to load article content');
     }
 
-    console.log('Successfully received article content for:', data.title);
+    console.log('Successfully received article content');
     return data;
   } catch (error) {
     console.error('Error in fetchArticleContent:', error);
@@ -111,7 +115,7 @@ const Article = () => {
     );
   }
 
-  if (error) {
+  if (error || !article?.content) {
     return (
       <div className="min-h-screen bg-ivory flex items-center justify-center">
         <div className="text-center">
@@ -125,7 +129,7 @@ const Article = () => {
           <h2 className="text-2xl font-playfair text-rosegold mb-4">
             Unable to load article
           </h2>
-          <p className="text-gray-600">Please try again later</p>
+          <p className="text-gray-600">The article content is not available</p>
         </div>
       </div>
     );
@@ -149,29 +153,27 @@ const Article = () => {
         <div className="absolute inset-0 bg-gradient-to-b from-transparent to-ivory/90" />
         <div className="container max-w-4xl px-4 relative z-[1]">
           <h1 className="font-playfair text-5xl text-rosegold text-center mb-4 animate-fadeIn">
-            {article?.title}
+            {article.title}
           </h1>
         </div>
       </div>
 
       {/* Main Content */}
       <div className="container max-w-4xl px-4 py-8">
-        {article && (
-          <article className="prose prose-lg max-w-none">
-            <div className="bg-white rounded-xl shadow-lg p-8 mb-8">
-              {article.byline && (
-                <p className="text-gray-600 italic mb-4">{article.byline}</p>
-              )}
-              {article.siteName && (
-                <p className="text-sm text-gray-500 mb-6">Source: {article.siteName}</p>
-              )}
-              <div
-                className="font-inter text-gray-800 space-y-6"
-                dangerouslySetInnerHTML={{ __html: article.content }}
-              />
-            </div>
-          </article>
-        )}
+        <article className="prose prose-lg max-w-none">
+          <div className="bg-white rounded-xl shadow-lg p-8 mb-8">
+            {article.byline && (
+              <p className="text-gray-600 italic mb-4">{article.byline}</p>
+            )}
+            {article.siteName && (
+              <p className="text-sm text-gray-500 mb-6">Source: {article.siteName}</p>
+            )}
+            <div
+              className="font-inter text-gray-800 space-y-6"
+              dangerouslySetInnerHTML={{ __html: article.content }}
+            />
+          </div>
+        </article>
       </div>
     </div>
   );

@@ -47,7 +47,7 @@ const Index = () => {
     queryKey: ["weddingNews"],
     queryFn: fetchNews,
     staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
-    cacheTime: 30 * 60 * 1000, // Keep unused data in cache for 30 minutes
+    gcTime: 30 * 60 * 1000, // Keep unused data in cache for 30 minutes
     refetchOnWindowFocus: false, // Disable automatic refetching when window regains focus
   });
 

@@ -92,7 +92,7 @@ const Article = () => {
     queryFn: () => fetchArticleContent(decodedUrl),
     enabled: !!decodedUrl,
     staleTime: 30 * 60 * 1000, // Consider article content fresh for 30 minutes
-    cacheTime: 60 * 60 * 1000, // Keep unused article data in cache for 1 hour
+    gcTime: 60 * 60 * 1000, // Keep unused article data in cache for 1 hour
     retry: 1,
     meta: {
       onError: () => {

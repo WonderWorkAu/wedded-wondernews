@@ -2,41 +2,7 @@
 import { corsHeaders } from '../_shared/cors.ts'
 
 const SERP_API_KEY = Deno.env.get('SERP_API_KEY')
-const GOOGLE_API_KEY = Deno.env.get('GOOGLE_API_KEY')
-const GOOGLE_CX = Deno.env.get('GOOGLE_CX')
 const SERP_API_URL = 'https://serpapi.com/search.json'
-
-async function fetchImageForArticle(title: string): Promise<string | null> {
-  try {
-    if (!GOOGLE_API_KEY || !GOOGLE_CX) {
-      console.error('Google API credentials not configured')
-      return null
-    }
-
-    const searchQuery = encodeURIComponent(`${title} wedding high quality`)
-    const url = `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_API_KEY}&cx=${GOOGLE_CX}&q=${searchQuery}&searchType=image&num=1&imgSize=LARGE`
-    
-    console.log(`Fetching image for article: "${title}"`)
-    const response = await fetch(url)
-    
-    if (!response.ok) {
-      console.error(`Google API error for "${title}":`, response.status)
-      return null
-    }
-
-    const data = await response.json()
-    if (data.items?.[0]?.link) {
-      console.log(`Found high quality image for "${title}"`)
-      return data.items[0].link
-    }
-    
-    console.log(`No image found for "${title}"`)
-    return null
-  } catch (error) {
-    console.error(`Error fetching image for "${title}":`, error)
-    return null
-  }
-}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -77,13 +43,35 @@ Deno.serve(async (req) => {
 
     console.log(`Found ${data.news_results.length} news results`)
     
-    // Process articles and fetch high-quality images
-    const articles = await Promise.all(data.news_results.map(async (result: any) => {
+    const articles = data.news_results.map((result: any) => {
       console.log('-------------------')
       console.log(`Processing article: ${result.title}`)
       
-      // Fetch a high-quality image using Google Custom Search
-      const highQualityImage = await fetchImageForArticle(result.title)
+      // Try to find the best quality image from multiple possible fields
+      let bestImage = null;
+      
+      // Check original_image first (highest quality)
+      if (result.original_image) {
+        console.log('Using original_image (highest quality)')
+        bestImage = result.original_image;
+      }
+      // Then try source_image
+      else if (result.source_image) {
+        console.log('Using source_image (high quality)')
+        bestImage = result.source_image;
+      }
+      // Then try large_image
+      else if (result.large_image) {
+        console.log('Using large_image (medium quality)')
+        bestImage = result.large_image;
+      }
+      // Finally fall back to thumbnail only if no better options exist
+      else if (result.thumbnail) {
+        console.log('Falling back to thumbnail (lowest quality)')
+        bestImage = result.thumbnail;
+      }
+      
+      console.log('Selected image:', bestImage || 'No image found')
       
       return {
         title: result.title,
@@ -91,9 +79,9 @@ Deno.serve(async (req) => {
         snippet: result.snippet,
         source: result.source,
         published: result.date,
-        image: highQualityImage || result.thumbnail // Fallback to thumbnail if no high-quality image found
+        image: bestImage
       }
-    }))
+    })
 
     console.log('Successfully processed articles')
     console.log('Articles with images:', articles.filter(a => a.image).length)

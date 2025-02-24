@@ -1,4 +1,3 @@
-
 import { NewsArticle } from "@/types/news";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader } from "./ui/card";
@@ -25,10 +24,12 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
               <img
                 src={article.image}
                 alt={article.title}
-                className="h-full w-auto max-w-none"
+                className="w-full h-full object-cover"
                 loading="lazy"
                 onError={handleImageError}
                 draggable="false"
+                decoding="async"
+                fetchPriority="high"
               />
             </div>
             <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />

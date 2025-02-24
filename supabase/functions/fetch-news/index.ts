@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
       q: 'wedding news celebrity marriage',
       tbm: 'nws',
       api_key: SERP_API_KEY,
-      num: '10',
+      num: '20',  // Increased to 20 since we'll filter some out
       hl: 'en',
       gl: 'us',
       tbs: 'qdr:d,simg:2'  // High quality images from the past day
@@ -45,62 +45,89 @@ Deno.serve(async (req) => {
 
     console.log(`Found ${data.news_results.length} news results`)
     
-    const articles = data.news_results.map((result: any) => {
-      console.log('-------------------')
-      console.log(`Processing article: ${result.title}`)
-      
-      // Try to find the best quality image from multiple possible fields
-      let bestImage = null;
-      
-      // Check for HD or high-res images first
-      if (result.original_image && result.original_image.includes('=s0')) {
-        console.log('Using HD original_image')
-        bestImage = result.original_image;
-      }
-      // Then try original_image with size parameter for better quality
-      else if (result.original_image) {
-        console.log('Using original_image with size parameter')
-        bestImage = result.original_image.includes('=') 
-          ? result.original_image.replace(/=.*$/, '=s1200') 
-          : `${result.original_image}=s1200`;
-      }
-      // Then try source_image with size parameter
-      else if (result.source_image) {
-        console.log('Using source_image with size parameter')
-        bestImage = result.source_image.includes('=') 
-          ? result.source_image.replace(/=.*$/, '=s1200')
-          : `${result.source_image}=s1200`;
-      }
-      // Then try large_image
-      else if (result.large_image) {
-        console.log('Using large_image')
-        bestImage = result.large_image;
-      }
-      // Finally fall back to thumbnail only if no better options exist
-      else if (result.thumbnail) {
-        console.log('Using thumbnail as fallback')
-        bestImage = result.thumbnail;
-      }
-      
-      // If the image URL is from Google's servers, ensure we request the highest quality
-      if (bestImage && bestImage.includes('googleusercontent.com')) {
-        bestImage = bestImage.replace(/=.*$/, '=s1200');
-      }
-      
-      console.log('Selected image:', bestImage || 'No image found')
-      
-      return {
-        title: result.title,
-        link: result.link,
-        snippet: result.snippet,
-        source: result.source,
-        published: result.date,
-        image: bestImage
-      }
-    })
+    const articles = data.news_results
+      .map((result: any) => {
+        console.log('-------------------')
+        console.log(`Processing article: ${result.title}`)
+        
+        // Try to find the best quality image from multiple possible fields
+        let bestImage = null;
+        let imageQuality = 'low';  // Track image quality
+        
+        // Check for HD or high-res images first
+        if (result.original_image && result.original_image.includes('=s0')) {
+          console.log('Using HD original_image')
+          bestImage = result.original_image;
+          imageQuality = 'high';
+        }
+        // Then try original_image with size parameter for better quality
+        else if (result.original_image) {
+          console.log('Using original_image with size parameter')
+          bestImage = result.original_image.includes('=') 
+            ? result.original_image.replace(/=.*$/, '=s1200') 
+            : `${result.original_image}=s1200`;
+          imageQuality = 'high';
+        }
+        // Then try source_image with size parameter
+        else if (result.source_image) {
+          console.log('Using source_image with size parameter')
+          bestImage = result.source_image.includes('=') 
+            ? result.source_image.replace(/=.*$/, '=s1200')
+            : `${result.source_image}=s1200`;
+          imageQuality = 'medium';
+        }
+        // Then try large_image
+        else if (result.large_image) {
+          console.log('Using large_image')
+          bestImage = result.large_image;
+          imageQuality = 'medium';
+        }
+        // Finally fall back to thumbnail only if no better options exist
+        else if (result.thumbnail) {
+          console.log('Using thumbnail as fallback')
+          bestImage = result.thumbnail;
+          imageQuality = 'low';
+        }
+        
+        // If the image URL is from Google's servers, ensure we request the highest quality
+        if (bestImage && bestImage.includes('googleusercontent.com')) {
+          bestImage = bestImage.replace(/=.*$/, '=s1200');
+          imageQuality = 'high';
+        }
+        
+        // Check if image URL seems to be high resolution
+        if (bestImage && bestImage.match(/\d+x\d+/)) {
+          const dimensions = bestImage.match(/(\d+)x(\d+)/);
+          if (dimensions && (parseInt(dimensions[1]) >= 800 || parseInt(dimensions[2]) >= 800)) {
+            imageQuality = 'high';
+          }
+        }
+        
+        console.log('Selected image:', bestImage || 'No image found')
+        console.log('Image quality:', imageQuality)
+        
+        return {
+          title: result.title,
+          link: result.link,
+          snippet: result.snippet,
+          source: result.source,
+          published: result.date,
+          image: bestImage,
+          imageQuality
+        }
+      })
+      .filter(article => {
+        // Only keep articles with high or medium quality images
+        const hasGoodImage = article.image && (article.imageQuality === 'high' || article.imageQuality === 'medium');
+        if (!hasGoodImage) {
+          console.log(`Filtering out article due to poor image quality: ${article.title}`);
+        }
+        return hasGoodImage;
+      })
+      .slice(0, 10);  // Only take the first 10 articles with good images
 
     console.log('Successfully processed articles')
-    console.log('Articles with images:', articles.filter(a => a.image).length)
+    console.log('Articles with high/medium quality images:', articles.length)
 
     return new Response(
       JSON.stringify({

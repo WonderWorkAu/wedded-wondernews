@@ -15,11 +15,12 @@ const fetchNews = async (page: number): Promise<{ articles: NewsArticle[], hasMo
   const from = page * ARTICLES_PER_PAGE;
   const to = from + ARTICLES_PER_PAGE - 1;
   
-  // Get articles from the database, sorted by published date
+  // Get articles from the database, excluding Buzzfeed and sorting by published date
   const { data: dbArticles, error: dbError, count } = await supabase
     .from('news_articles')
     .select('*', { count: 'exact' })
     .eq('is_archived', false)
+    .neq('source', 'BuzzFeed')  // Exclude Buzzfeed articles
     .order('published', { ascending: false })
     .range(from, to);
 
@@ -43,10 +44,13 @@ const fetchNews = async (page: number): Promise<{ articles: NewsArticle[], hasMo
       throw new Error("No articles found");
     }
 
-    console.log(`Received ${data.articles.length} articles from API`);
+    // Filter out Buzzfeed articles from API response
+    const filteredArticles = data.articles.filter(article => article.source !== 'BuzzFeed');
+    console.log(`Received ${filteredArticles.length} non-Buzzfeed articles from API`);
+
     return {
-      articles: data.articles.slice(0, ARTICLES_PER_PAGE),
-      hasMore: data.articles.length > ARTICLES_PER_PAGE
+      articles: filteredArticles.slice(0, ARTICLES_PER_PAGE),
+      hasMore: filteredArticles.length > ARTICLES_PER_PAGE
     };
   }
 

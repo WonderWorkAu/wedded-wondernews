@@ -15,7 +15,7 @@ Deno.serve(async (req) => {
       throw new Error('SERP API key is not configured')
     }
 
-    console.log('Starting news fetch from SERP API with key:', SERP_API_KEY.substring(0, 5) + '...')
+    console.log('Starting news fetch from SERP API...')
     
     const params = new URLSearchParams({
       q: 'wedding news celebrity marriage',
@@ -24,17 +24,27 @@ Deno.serve(async (req) => {
       num: '10'
     })
 
-    console.log('Making request to SERP API...')
-    const response = await fetch(`${SERP_API_URL}?${params}`)
-    const data = await response.json()
+    const url = `${SERP_API_URL}?${params}`
+    console.log('Making request to SERP API:', url.replace(SERP_API_KEY, '[REDACTED]'))
+    
+    const response = await fetch(url)
     console.log('SERP API response status:', response.status)
-    console.log('SERP API raw response:', JSON.stringify(data))
+    
+    if (!response.ok) {
+      throw new Error(`SERP API returned status ${response.status}`)
+    }
+
+    const data = await response.json()
+    console.log('SERP API response type:', typeof data)
+    console.log('SERP API response keys:', Object.keys(data))
 
     if (!data.news_results) {
-      console.error('No news results found in SERP API response')
+      console.error('No news_results found in response:', JSON.stringify(data))
       throw new Error('No news results found in API response')
     }
 
+    console.log(`Found ${data.news_results.length} news results`)
+    
     const articles = data.news_results.map((result: any) => ({
       title: result.title,
       link: result.link,
@@ -44,7 +54,7 @@ Deno.serve(async (req) => {
       thumbnail: result.thumbnail
     }))
 
-    console.log(`Successfully transformed ${articles.length} articles`)
+    console.log('Successfully processed articles')
 
     return new Response(
       JSON.stringify({

@@ -21,14 +21,16 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
       <Card className="group overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
         {article.image && !imageError ? (
           <div className="relative h-48 overflow-hidden bg-gray-100">
-            <img
-              src={article.image}
-              alt={article.title}
-              className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-              loading="lazy"
-              onError={handleImageError}
-              draggable="false"
-            />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <img
+                src={article.image}
+                alt={article.title}
+                className="h-full w-auto max-w-none"
+                loading="lazy"
+                onError={handleImageError}
+                draggable="false"
+              />
+            </div>
             <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
           </div>
         ) : (

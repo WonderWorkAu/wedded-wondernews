@@ -1,8 +1,9 @@
 
 import { useQuery } from "@tanstack/react-query";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Home } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/components/ui/use-toast";
 
 interface ArticleContent {
   title: string;
@@ -14,32 +15,70 @@ interface ArticleContent {
 
 const fetchArticleContent = async (url: string): Promise<ArticleContent> => {
   console.log('Fetching article content for URL:', url);
-  const { data, error } = await supabase.functions.invoke('fetch-article', {
-    body: { url }
-  });
+  
+  try {
+    // First try to get from database
+    const { data: existingArticle, error: dbError } = await supabase
+      .from('news_articles')
+      .select('*')
+      .eq('link', url)
+      .single();
 
-  if (error) {
-    console.error('Error fetching article:', error);
+    if (existingArticle && !dbError) {
+      console.log('Found article in database:', existingArticle.title);
+      return {
+        title: existingArticle.title,
+        content: existingArticle.content || '',
+        siteName: existingArticle.source,
+        excerpt: existingArticle.snippet,
+      };
+    }
+
+    // If not in database, fetch from edge function
+    const { data, error } = await supabase.functions.invoke('fetch-article', {
+      body: { url }
+    });
+
+    if (error) {
+      console.error('Error fetching article:', error);
+      throw error;
+    }
+
+    if (!data) {
+      console.error('No data returned from fetch-article function');
+      throw new Error('No article data received');
+    }
+
+    console.log('Successfully received article content for:', data.title);
+    return data;
+  } catch (error) {
+    console.error('Error in fetchArticleContent:', error);
     throw error;
   }
-
-  if (!data) {
-    console.error('No data returned from fetch-article function');
-    throw new Error('No article data received');
-  }
-
-  console.log('Successfully received article content');
-  return data;
 };
 
 const Article = () => {
   const { url } = useParams();
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const decodedUrl = url ? decodeURIComponent(url) : '';
+
+  console.log('Article page loaded with URL:', decodedUrl);
 
   const { data: article, isLoading, error } = useQuery({
     queryKey: ["article", decodedUrl],
     queryFn: () => fetchArticleContent(decodedUrl),
     enabled: !!decodedUrl,
+    retry: 1,
+    onError: (error) => {
+      console.error('Error loading article:', error);
+      toast({
+        title: "Error loading article",
+        description: "Unable to load the article content. Please try again later.",
+        variant: "destructive",
+      });
+      navigate('/');
+    },
   });
 
   if (isLoading) {
@@ -137,4 +176,3 @@ const Article = () => {
 };
 
 export default Article;
-

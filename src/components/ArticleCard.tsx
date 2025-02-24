@@ -1,3 +1,4 @@
+
 import { NewsArticle } from "@/types/news";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader } from "./ui/card";
@@ -15,8 +16,12 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
     setImageError(true);
   };
 
+  // Properly encode the URL to prevent any routing issues
+  const encodedUrl = encodeURIComponent(article.link);
+  console.log('Creating link for article:', article.title, 'with URL:', article.link);
+
   return (
-    <Link to={`/article/${encodeURIComponent(article.link)}`}>
+    <Link to={`/article/${encodedUrl}`}>
       <Card className="group overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
         {article.image && !imageError ? (
           <div className="relative h-48 overflow-hidden bg-gray-100">
@@ -28,8 +33,6 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
                 loading="lazy"
                 onError={handleImageError}
                 draggable="false"
-                decoding="async"
-                fetchPriority="high"
               />
             </div>
             <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />

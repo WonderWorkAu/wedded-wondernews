@@ -1,3 +1,4 @@
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 
@@ -8,48 +9,24 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
 const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!)
 
-// Function to extract the largest image from HTML content
-async function extractBestImage(url: string): Promise<string | null> {
-  try {
-    console.log('Fetching article content from:', url)
-    const response = await fetch(url)
-    const html = await response.text()
-    
-    // Extract all img tags
-    const imgRegex = /<img[^>]+src="([^">]+)"/g
-    const images: string[] = []
-    let match
-    
-    while ((match = imgRegex.exec(html)) !== null) {
-      const imgUrl = match[1]
-      if (
-        imgUrl.startsWith('http') && 
-        !imgUrl.includes('icon') &&
-        !imgUrl.includes('logo') &&
-        !imgUrl.includes('avatar') &&
-        imgUrl.match(/\.(jpg|jpeg|png|webp)/i)
-      ) {
-        images.push(imgUrl)
-      }
-    }
-
-    // Also try to find Open Graph image
-    const ogImageMatch = html.match(/<meta[^>]+property="og:image"[^>]+content="([^">]+)"/i)
-    if (ogImageMatch && ogImageMatch[1]) {
-      images.push(ogImageMatch[1])
-    }
-
-    if (images.length === 0) {
-      console.log('No suitable images found in article')
-      return null
-    }
-
-    // Return the first valid image
-    return images[0]
-  } catch (error) {
-    console.error('Error extracting image from article:', error)
-    return null
+// Convert relative time string to ISO date
+function convertRelativeTime(timeStr: string): string {
+  const now = new Date()
+  const units: { [key: string]: number } = {
+    'minute': 60 * 1000,
+    'hour': 60 * 60 * 1000,
+    'day': 24 * 60 * 60 * 1000,
+    'week': 7 * 24 * 60 * 60 * 1000,
+    'month': 30 * 24 * 60 * 60 * 1000,
   }
+
+  const match = timeStr.match(/(\d+)\s+(minute|hour|day|week|month)s?\s+ago/)
+  if (!match) return now.toISOString()
+
+  const [_, amount, unit] = match
+  const msToSubtract = parseInt(amount) * units[unit]
+  const date = new Date(now.getTime() - msToSubtract)
+  return date.toISOString()
 }
 
 async function fetchFromSerpApi(query: string, numResults: number) {
@@ -79,106 +56,39 @@ async function fetchFromSerpApi(query: string, numResults: number) {
 async function processAndStoreArticles(newsResults: any[]) {
   const articles = []
   for (const result of newsResults) {
-    // Check if article is already indexed
-    const { data: existingArticle } = await supabase
-      .from('news_articles')
-      .select('*')
-      .eq('link', result.link)
-      .single()
+    try {
+      const published = convertRelativeTime(result.date)
+      
+      // Process the article
+      const article = {
+        title: result.title,
+        link: result.link,
+        snippet: result.snippet,
+        source: result.source,
+        published,
+        image: result.thumbnail || result.image || null,
+        created_at: new Date().toISOString(),
+        is_archived: false
+      }
 
-    if (existingArticle) {
-      console.log('Article already indexed:', result.title)
-      articles.push(existingArticle)
+      // Store article in database
+      const { error } = await supabase
+        .from('news_articles')
+        .upsert(article, { onConflict: 'link' })
+
+      if (error) {
+        console.error('Error storing article:', error)
+        continue
+      }
+
+      articles.push(article)
+    } catch (error) {
+      console.error('Error processing article:', error)
       continue
     }
-
-    // Article not indexed, process and store it
-    console.log('Processing new article:', result.title)
-    
-    // Try to get high quality image from the article first
-    const articleImage = await extractBestImage(result.link)
-    
-    let bestImage = articleImage
-    
-    // Fall back to SERP images if article extraction failed
-    if (!bestImage) {
-      if (result.original_image) bestImage = result.original_image
-      else if (result.source_image) bestImage = result.source_image
-      else if (result.large_image) bestImage = result.large_image
-    }
-
-    const article = {
-      title: result.title,
-      link: result.link,
-      snippet: result.snippet,
-      source: result.source,
-      published: result.date,
-      image: bestImage,
-      created_at: new Date(),
-      is_archived: false
-    }
-
-    // Store article in database
-    const { error } = await supabase
-      .from('news_articles')
-      .upsert(article, { onConflict: 'link' })
-
-    if (error) {
-      console.error('Error storing article:', error)
-      continue
-    }
-
-    articles.push(article)
   }
 
   return articles
-}
-
-async function getRecentArticles() {
-  const { data: articles, error } = await supabase
-    .from('news_articles')
-    .select('*')
-    .eq('is_archived', false)
-    .order('published', { ascending: false })
-    .limit(10)
-
-  if (error) {
-    throw error
-  }
-
-  return articles
-}
-
-// Function to check if we should fetch new articles
-async function shouldFetchNewArticles(): Promise<boolean> {
-  const { data: config, error } = await supabase
-    .from('search_config')
-    .select('*')
-    .single()
-
-  if (error) {
-    console.error('Error fetching search config:', error)
-    return true // Fetch if we can't determine last run time
-  }
-
-  if (!config.last_run) return true
-
-  const lastRun = new Date(config.last_run)
-  const now = new Date()
-  const hoursSinceLastRun = (now.getTime() - lastRun.getTime()) / (1000 * 60 * 60)
-
-  return hoursSinceLastRun >= 24
-}
-
-async function updateLastRunTime() {
-  const { error } = await supabase
-    .from('search_config')
-    .update({ last_run: new Date().toISOString() })
-    .eq('query', 'wedding news celebrity marriage')
-
-  if (error) {
-    console.error('Error updating last run time:', error)
-  }
 }
 
 Deno.serve(async (req) => {
@@ -189,11 +99,10 @@ Deno.serve(async (req) => {
   try {
     console.log('Starting news fetch process...')
     
-    // Always perform SERP API search to get latest news
+    // Always perform SERP API search as requested
     console.log('Fetching news from SERP API...')
-    const newsResults = await fetchFromSerpApi('wedding news', 15)
+    const newsResults = await fetchFromSerpApi('wedding news celebrity marriage', 15)
     const articles = await processAndStoreArticles(newsResults)
-    await updateLastRunTime()
     
     // Return the processed articles
     return new Response(JSON.stringify({

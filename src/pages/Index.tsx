@@ -47,10 +47,13 @@ function Index() {
 
       setTotalCount(count || 0);
 
-      // Then fetch the paginated data
+      // Then fetch the paginated data with priority for articles with images
       let query = supabase
         .from("news_articles")
         .select("*")
+        // Order by whether there's an image first (non-null images first)
+        .order("image", { ascending: false, nullsLast: true })
+        // Then by created_at date for articles with same image status
         .order("created_at", { ascending: false })
         .range((currentPage - 1) * articlesPerPage, currentPage * articlesPerPage - 1);
 

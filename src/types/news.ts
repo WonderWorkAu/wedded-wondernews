@@ -1,5 +1,6 @@
 
 export interface NewsArticle {
+  id: string;  // Added id property
   title: string;
   link: string;
   snippet: string;

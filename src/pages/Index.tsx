@@ -24,10 +24,13 @@ function Index() {
   const articlesPerPage = 10;
 
   useEffect(() => {
-    fetchArticles();
-  }, [currentPage, searchQuery]);
+    // Only fetch articles on page change, not on search query change
+    if (!searchQuery) {
+      fetchArticles();
+    }
+  }, [currentPage]);
 
-  const fetchArticles = async () => {
+  const fetchArticles = async (isSearching = false) => {
     setLoading(true);
     try {
       // First, get the total count
@@ -35,7 +38,7 @@ function Index() {
         .from("news_articles")
         .select("id", { count: "exact" });
 
-      if (searchQuery) {
+      if (searchQuery && isSearching) {
         countQuery = countQuery.ilike("title", `%${searchQuery}%`);
       }
 
@@ -50,11 +53,15 @@ function Index() {
         .from("news_articles")
         .select("*")
         .order("image", { ascending: false, nullsFirst: false })
-        .order("created_at", { ascending: false })
-        .range((currentPage - 1) * articlesPerPage, currentPage * articlesPerPage - 1);
+        .order("created_at", { ascending: false });
 
-      if (searchQuery) {
+      if (searchQuery && isSearching) {
         query = query.ilike("title", `%${searchQuery}%`);
+      }
+
+      if (!isSearching) {
+        // Only apply pagination for non-search results
+        query = query.range((currentPage - 1) * articlesPerPage, currentPage * articlesPerPage - 1);
       }
 
       const { data, error } = await query;
@@ -66,7 +73,7 @@ function Index() {
       }
 
       // If no results found and there's a search query, fetch from SERP API
-      if (data && data.length === 0 && searchQuery) {
+      if (data && data.length === 0 && searchQuery && isSearching) {
         toast.info("Searching external sources...");
         try {
           const { data: serpData, error: serpError } = await supabase.functions.invoke('fetch-news', {
@@ -112,13 +119,13 @@ function Index() {
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
-    setCurrentPage(1); // Reset to first page on new search
+    // Don't fetch on change anymore
   };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setCurrentPage(1); // Reset to first page on search submit
-    fetchArticles();
+    fetchArticles(true); // Pass true to indicate this is a search operation
   };
 
   const handleBulkFetch = async () => {
@@ -189,27 +196,29 @@ function Index() {
             ))}
           </div>
 
-          <Pagination>
-            <PaginationContent>
-              <PaginationItem>
-                <PaginationPrevious 
-                  onClick={handlePreviousPage}
-                  className={currentPage <= 1 ? 'pointer-events-none opacity-50' : ''}
-                />
-              </PaginationItem>
-              <PaginationItem>
-                <PaginationLink>
-                  Page {currentPage} of {totalPages}
-                </PaginationLink>
-              </PaginationItem>
-              <PaginationItem>
-                <PaginationNext 
-                  onClick={handleNextPage}
-                  className={currentPage >= totalPages ? 'pointer-events-none opacity-50' : ''}
-                />
-              </PaginationItem>
-            </PaginationContent>
-          </Pagination>
+          {!searchQuery && (
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious 
+                    onClick={handlePreviousPage}
+                    className={currentPage <= 1 ? 'pointer-events-none opacity-50' : ''}
+                  />
+                </PaginationItem>
+                <PaginationItem>
+                  <PaginationLink>
+                    Page {currentPage} of {totalPages}
+                  </PaginationLink>
+                </PaginationItem>
+                <PaginationItem>
+                  <PaginationNext 
+                    onClick={handleNextPage}
+                    className={currentPage >= totalPages ? 'pointer-events-none opacity-50' : ''}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          )}
         </>
       )}
     </div>
@@ -217,3 +226,4 @@ function Index() {
 }
 
 export default Index;
+

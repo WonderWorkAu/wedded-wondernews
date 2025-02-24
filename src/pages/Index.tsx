@@ -1,175 +1,118 @@
-import { useQuery } from "@tanstack/react-query";
-import { NewsArticle } from "@/types/news";
 import { ArticleCard } from "@/components/ArticleCard";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ChevronRight } from "lucide-react";
-import { useState } from "react";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableFooter,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { supabase } from "@/integrations/supabase/client";
+import { NewsArticle } from "@/types/news";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
-const ARTICLES_PER_PAGE = 10;
+function Index() {
+  const [articles, setArticles] = useState<NewsArticle[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(true);
 
-const fetchNews = async (page: number): Promise<{ articles: NewsArticle[], hasMore: boolean }> => {
-  console.log('Fetching news articles for page:', page);
-  
-  const from = page * ARTICLES_PER_PAGE;
-  const to = from + ARTICLES_PER_PAGE - 1;
-  
-  // Get articles from the database, excluding Buzzfeed and sorting by published date
-  const { data: dbArticles, error: dbError, count } = await supabase
-    .from('news_articles')
-    .select('*', { count: 'exact' })
-    .eq('is_archived', false)
-    .neq('source', 'BuzzFeed')
-    .order('published', { ascending: false })
-    .range(from, to);
+  useEffect(() => {
+    fetchArticles();
+  }, []);
 
-  if (dbError) {
-    console.error('Error fetching from database:', dbError);
-    throw dbError;
-  }
+  const fetchArticles = async () => {
+    setLoading(true);
+    try {
+      let query = supabase.from("news_articles").select("*").order("created_at", { ascending: false });
 
-  // For each article, fetch fresh content if we don't have it
-  const articlesWithContent = await Promise.all((dbArticles || []).map(async (article) => {
-    if (!article.content) {
-      console.log(`Fetching fresh content for article: ${article.title}`);
-      try {
-        const { data, error } = await supabase.functions.invoke('fetch-article', {
-          body: { url: article.link }
-        });
-        
-        if (!error && data?.content) {
-          // Update the article content in the database
-          const { error: updateError } = await supabase
-            .from('news_articles')
-            .update({ content: data.content })
-            .eq('link', article.link);
-
-          if (updateError) {
-            console.error('Error updating article content:', updateError);
-          }
-
-          return { ...article, content: data.content };
-        }
-      } catch (error) {
-        console.error(`Error fetching content for article ${article.title}:`, error);
+      if (searchQuery) {
+        query = query.ilike("title", `%${searchQuery}%`);
       }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error("Error fetching articles:", error);
+        toast.error("Failed to fetch articles. Please try again.");
+      } else {
+        setArticles(data || []);
+      }
+    } finally {
+      setLoading(false);
     }
-    return article;
-  }));
-
-  // If we have no articles in the database or it's the first page, try fetching new ones
-  if ((articlesWithContent.length === 0 && page === 0) || !articlesWithContent) {
-    console.log('No articles in database, fetching from API...');
-    const { data, error } = await supabase.functions.invoke('fetch-news');
-    
-    if (error) {
-      console.error('Error fetching news:', error);
-      throw new Error("Failed to fetch news");
-    }
-
-    if (!data?.articles) {
-      console.error('No articles found in response');
-      throw new Error("No articles found");
-    }
-
-    // Filter out Buzzfeed articles from API response
-    const filteredArticles = data.articles.filter(article => article.source !== 'BuzzFeed');
-    console.log(`Received ${filteredArticles.length} non-Buzzfeed articles from API`);
-
-    return {
-      articles: filteredArticles.slice(0, ARTICLES_PER_PAGE),
-      hasMore: filteredArticles.length > ARTICLES_PER_PAGE
-    };
-  }
-
-  // Calculate if there are more articles to load
-  const hasMore = count ? count > (page + 1) * ARTICLES_PER_PAGE : false;
-
-  console.log(`Retrieved ${articlesWithContent.length} articles with content. Has more: ${hasMore}`);
-  return { articles: articlesWithContent, hasMore };
-};
-
-const Index = () => {
-  const [currentPage, setCurrentPage] = useState(0);
-  
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["weddingNews", currentPage],
-    queryFn: () => fetchNews(currentPage),
-    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
-    gcTime: 30 * 60 * 1000, // Keep unused data in cache for 30 minutes
-    refetchOnWindowFocus: false,
-  });
-
-  const handleNextPage = () => {
-    setCurrentPage(prev => prev + 1);
-    // Scroll to top when loading new page
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-ivory">
-        <div className="container px-4 py-8">
-          <div className="animate-pulse space-y-4">
-            {[...Array(10)].map((_, i) => (
-              <div key={i} className="h-64 bg-gray-200 rounded-lg" />
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+  };
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-ivory flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-playfair text-rosegold mb-4">
-            Unable to load wedding news
-          </h2>
-          <p className="text-gray-600">Please try again later</p>
-        </div>
-      </div>
-    );
-  }
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    fetchArticles();
+  };
+
+  // Add this function near your other functions
+  const handleBulkFetch = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('fetch-news', {
+        method: 'POST'
+      });
+
+      if (error) {
+        console.error('Error fetching news:', error);
+        throw error;
+      }
+
+      console.log('Bulk fetch completed:', data);
+      // Refresh the current page to show new articles
+      window.location.reload();
+    } catch (err) {
+      console.error('Failed to bulk fetch articles:', err);
+      toast.error('Failed to fetch articles. Please try again.');
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-ivory">
-      <div className="container px-4 py-8">
-        <header className="text-center mb-12 animate-fadeIn">
-          <h1 className="text-4xl md:text-5xl font-playfair text-rosegold mb-4">
-            Wedded Wonderland
-          </h1>
-          <p className="text-gray-600 font-inter">
-            Your curated source for luxury wedding news
-          </p>
-        </header>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {data?.articles?.map((article, index) => (
-            <div
-              key={article.link}
-              className="animate-fadeIn"
-              style={{ animationDelay: `${index * 0.1}s` }}
-            >
-              <ArticleCard article={article} />
-            </div>
+    <div className="container mx-auto py-10">
+      <h1 className="text-3xl font-bold mb-6">Latest Wedding News</h1>
+
+      <form onSubmit={handleSearchSubmit} className="mb-4">
+        <div className="flex items-center">
+          <Input
+            type="text"
+            placeholder="Search articles..."
+            value={searchQuery}
+            onChange={handleSearchChange}
+            className="mr-2"
+          />
+          <Button type="submit">Search</Button>
+        </div>
+      </form>
+
+      <Button
+        onClick={handleBulkFetch}
+        className="mb-4"
+        variant="outline"
+      >
+        Fetch 50 New Articles
+      </Button>
+
+      {loading ? (
+        <p>Loading articles...</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {articles.map((article) => (
+            <ArticleCard key={article.id} article={article} />
           ))}
         </div>
-        {data?.hasMore && (
-          <div className="flex justify-center mt-8">
-            <Button
-              onClick={handleNextPage}
-              className="group"
-              variant="outline"
-            >
-              Load More Articles
-              <ChevronRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
-            </Button>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
-};
+}
 
 export default Index;

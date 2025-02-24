@@ -17,10 +17,10 @@ const fetchArticleContent = async (url: string): Promise<ArticleContent> => {
   console.log('Fetching article content for URL:', url);
   
   try {
-    // First try to get from database
+    // First try to get from database with a more efficient query
     const { data: existingArticle, error: dbError } = await supabase
       .from('news_articles')
-      .select('*')
+      .select('title, content, source, snippet')
       .eq('link', url)
       .maybeSingle();
 
@@ -91,6 +91,8 @@ const Article = () => {
     queryKey: ["article", decodedUrl],
     queryFn: () => fetchArticleContent(decodedUrl),
     enabled: !!decodedUrl,
+    staleTime: 30 * 60 * 1000, // Consider article content fresh for 30 minutes
+    cacheTime: 60 * 60 * 1000, // Keep unused article data in cache for 1 hour
     retry: 1,
     meta: {
       onError: () => {

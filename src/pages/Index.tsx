@@ -6,6 +6,26 @@ import { supabase } from "@/integrations/supabase/client";
 
 const fetchNews = async (): Promise<NewsArticle[]> => {
   console.log('Fetching news articles...');
+  
+  // First try to get articles directly from the database
+  const { data: dbArticles, error: dbError } = await supabase
+    .from('news_articles')
+    .select('*')
+    .eq('is_archived', false)
+    .order('published', { ascending: false })
+    .limit(15);
+
+  if (dbError) {
+    console.error('Error fetching from database:', dbError);
+  }
+
+  // If we have recent articles in the database, return them immediately
+  if (dbArticles && dbArticles.length > 0) {
+    console.log('Retrieved articles from database');
+    return dbArticles;
+  }
+
+  // If no articles in database, fetch from API
   const { data, error } = await supabase.functions.invoke('fetch-news');
   
   if (error) {
@@ -26,6 +46,9 @@ const Index = () => {
   const { data: articles, isLoading, error } = useQuery({
     queryKey: ["weddingNews"],
     queryFn: fetchNews,
+    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+    cacheTime: 30 * 60 * 1000, // Keep unused data in cache for 30 minutes
+    refetchOnWindowFocus: false, // Disable automatic refetching when window regains focus
   });
 
   if (isLoading) {

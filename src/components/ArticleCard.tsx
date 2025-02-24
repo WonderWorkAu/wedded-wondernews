@@ -21,12 +21,28 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
       !url.includes('undefined');
   };
 
-  // Extract first image from content
+  // Extract first image from content with higher quality preference
   const getContentImage = (): string | null => {
     if (!article.content) return null;
     
-    const imgMatch = article.content.match(/<img[^>]+src=["']([^"']+)["']/i);
-    return imgMatch ? imgMatch[1] : null;
+    // First try to find high-res images
+    const highResMatch = article.content.match(/<img[^>]+src=["']([^"']+)["'][^>]*(?:data-high-res-src=["'][^"']+["']|class=["'][^"']*high-res[^"']*["'])[^>]*>/i);
+    if (highResMatch) return highResMatch[1];
+    
+    // Then try to find any image that looks like a featured/header image
+    const featuredMatch = article.content.match(/<img[^>]+src=["']([^"']+)["'][^>]*(?:class=["'][^"']*(?:featured|header|hero|main)[^"']*["'])[^>]*>/i);
+    if (featuredMatch) return featuredMatch[1];
+    
+    // Finally, fall back to the first image that's large enough
+    const imgMatches = article.content.matchAll(/<img[^>]+src=["']([^"']+)["'][^>]*>/gi);
+    for (const match of imgMatches) {
+      const url = match[1];
+      if (url && !url.includes('icon') && !url.includes('logo') && !url.includes('avatar')) {
+        return url;
+      }
+    }
+    
+    return null;
   };
 
   // Get the best available image source
@@ -51,8 +67,8 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
   const getFinalImageUrl = () => {
     if (!imageSource) return null;
     if (useProxy) {
-      // Using ImageKit.io as a proxy (free tier)
-      return `https://ik.imagekit.io/demo/tr:n-ik_ml_thumbnail/${encodeURIComponent(imageSource)}`;
+      // Using ImageKit.io with improved quality parameters
+      return `https://ik.imagekit.io/demo/tr:w-800,h-600,f-auto,q-80/${encodeURIComponent(imageSource)}`;
     }
     return imageSource;
   };

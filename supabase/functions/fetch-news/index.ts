@@ -1,4 +1,3 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 
@@ -34,7 +33,10 @@ async function fetchFromSerpApi(query: string, numResults: number) {
     q: query,
     tbm: 'nws',
     api_key: SERP_API_KEY!,
-    num: numResults.toString()
+    num: numResults.toString(),
+    hl: 'en',
+    gl: 'us',
+    tbs: 'qdr:d,isz:l'  // Only large images from the past day
   })
 
   const url = `${SERP_API_URL}?${params}`
@@ -59,6 +61,50 @@ async function processAndStoreArticles(newsResults: any[]) {
     try {
       const published = convertRelativeTime(result.date)
       
+      // Get the best quality image available
+      let bestImage = null;
+      
+      // Check for original high-res image first
+      if (result.original_image) {
+        bestImage = result.original_image;
+        // If it's a Google image, request the highest quality
+        if (bestImage.includes('googleusercontent.com')) {
+          bestImage = bestImage.replace(/=.*$/, '=s1200-c');
+        }
+      }
+      // Then try source image
+      else if (result.source_image) {
+        bestImage = result.source_image;
+        if (bestImage.includes('googleusercontent.com')) {
+          bestImage = bestImage.replace(/=.*$/, '=s1200-c');
+        }
+      }
+      // Then try large image
+      else if (result.large_image) {
+        bestImage = result.large_image;
+        if (bestImage.includes('googleusercontent.com')) {
+          bestImage = bestImage.replace(/=.*$/, '=s1200-c');
+        }
+      }
+      
+      // Skip articles without good quality images
+      if (!bestImage) {
+        console.log('Skipping article due to lack of high-quality image:', result.title);
+        continue;
+      }
+
+      // Try to fetch the article content to get the og:image
+      try {
+        const articleResponse = await fetch(result.link);
+        const html = await articleResponse.text();
+        const ogImageMatch = html.match(/<meta[^>]+property="og:image"[^>]+content="([^">]+)"/i);
+        if (ogImageMatch && ogImageMatch[1] && ogImageMatch[1].startsWith('http')) {
+          bestImage = ogImageMatch[1];
+        }
+      } catch (error) {
+        console.log('Failed to fetch og:image, using SERP image instead:', error);
+      }
+      
       // Process the article
       const article = {
         title: result.title,
@@ -66,7 +112,7 @@ async function processAndStoreArticles(newsResults: any[]) {
         snippet: result.snippet,
         source: result.source,
         published,
-        image: result.thumbnail || result.image || null,
+        image: bestImage,
         created_at: new Date().toISOString(),
         is_archived: false
       }

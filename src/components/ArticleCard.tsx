@@ -1,4 +1,3 @@
-
 import { NewsArticle } from "@/types/news";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader } from "./ui/card";
@@ -13,18 +12,15 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
   const [imageSource, setImageSource] = useState<string | undefined>(article.image);
 
   useEffect(() => {
-    // Try to extract an image from the article content if available
-    if (article.content && (!imageSource || imageError)) {
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = article.content;
-      const firstImage = tempDiv.querySelector('img');
-      const imageSrc = firstImage?.getAttribute('src');
-      if (imageSrc && !imageSrc.startsWith('data:')) {
-        setImageSource(imageSrc);
-        setImageError(false);
+    if (article.image) {
+      // For Google images, ensure we're requesting the highest quality
+      if (article.image.includes('googleusercontent.com')) {
+        setImageSource(article.image.replace(/=.*$/, '=s1200-c'));
+      } else {
+        setImageSource(article.image);
       }
     }
-  }, [article.content, imageSource, imageError]);
+  }, [article.image]);
 
   const handleImageError = () => {
     console.log(`Image failed to load for article: ${article.title}`);
@@ -39,14 +35,19 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
     <Link to={`/article/${encodedUrl}`}>
       <Card className="group overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
         {imageSource && !imageError ? (
-          <div className="relative h-48 overflow-hidden bg-gray-100">
-            <div className="absolute inset-0 flex items-center justify-center">
+          <div className="relative h-64 overflow-hidden bg-gray-100">
+            <div className="absolute inset-0">
               <img
                 src={imageSource}
                 alt={article.title}
-                className="w-full h-full object-cover"
-                loading="lazy"
+                className="absolute inset-0 w-full h-full object-cover"
+                style={{ 
+                  objectFit: 'cover',
+                  imageRendering: '-webkit-optimize-contrast'
+                }}
+                loading="eager"
                 onError={handleImageError}
+                crossOrigin="anonymous"
                 referrerPolicy="no-referrer"
                 draggable="false"
               />
@@ -54,7 +55,7 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
             <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
           </div>
         ) : (
-          <div className="h-48 bg-gray-100 flex items-center justify-center group-hover:bg-gray-200 transition-colors duration-300">
+          <div className="h-64 bg-gray-100 flex items-center justify-center group-hover:bg-gray-200 transition-colors duration-300">
             <span className="text-gray-400 font-medium">No image available</span>
           </div>
         )}
@@ -76,4 +77,3 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
     </Link>
   );
 };
-

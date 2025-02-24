@@ -3,53 +3,76 @@ import { useQuery } from "@tanstack/react-query";
 import { NewsArticle } from "@/types/news";
 import { ArticleCard } from "@/components/ArticleCard";
 import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { ChevronRight } from "lucide-react";
+import { useState } from "react";
 
-const fetchNews = async (): Promise<NewsArticle[]> => {
-  console.log('Fetching news articles...');
+const ARTICLES_PER_PAGE = 10;
+
+const fetchNews = async (page: number): Promise<{ articles: NewsArticle[], hasMore: boolean }> => {
+  console.log('Fetching news articles for page:', page);
   
-  // First try to get articles directly from the database
-  const { data: dbArticles, error: dbError } = await supabase
+  const from = page * ARTICLES_PER_PAGE;
+  const to = from + ARTICLES_PER_PAGE - 1;
+  
+  // Get articles from the database, sorted by published date
+  const { data: dbArticles, error: dbError, count } = await supabase
     .from('news_articles')
-    .select('*')
+    .select('*', { count: 'exact' })
     .eq('is_archived', false)
     .order('published', { ascending: false })
-    .limit(15);
+    .range(from, to);
 
   if (dbError) {
     console.error('Error fetching from database:', dbError);
+    throw dbError;
   }
 
-  // If we have recent articles in the database, return them immediately
-  if (dbArticles && dbArticles.length > 0) {
-    console.log('Retrieved articles from database');
-    return dbArticles;
+  // If we have no articles in the database or it's the first page, try fetching new ones
+  if ((dbArticles?.length === 0 && page === 0) || !dbArticles) {
+    console.log('No articles in database, fetching from API...');
+    const { data, error } = await supabase.functions.invoke('fetch-news');
+    
+    if (error) {
+      console.error('Error fetching news:', error);
+      throw new Error("Failed to fetch news");
+    }
+
+    if (!data?.articles) {
+      console.error('No articles found in response');
+      throw new Error("No articles found");
+    }
+
+    console.log(`Received ${data.articles.length} articles from API`);
+    return {
+      articles: data.articles.slice(0, ARTICLES_PER_PAGE),
+      hasMore: data.articles.length > ARTICLES_PER_PAGE
+    };
   }
 
-  // If no articles in database, fetch from API
-  const { data, error } = await supabase.functions.invoke('fetch-news');
-  
-  if (error) {
-    console.error('Error fetching news:', error);
-    throw new Error("Failed to fetch news");
-  }
+  // Calculate if there are more articles to load
+  const hasMore = count ? count > (page + 1) * ARTICLES_PER_PAGE : false;
 
-  if (!data?.articles) {
-    console.error('No articles found in response');
-    throw new Error("No articles found");
-  }
-
-  console.log(`Received ${data.articles.length} articles`);
-  return data.articles;
+  console.log(`Retrieved ${dbArticles.length} articles from database. Has more: ${hasMore}`);
+  return { articles: dbArticles, hasMore };
 };
 
 const Index = () => {
-  const { data: articles, isLoading, error } = useQuery({
-    queryKey: ["weddingNews"],
-    queryFn: fetchNews,
+  const [currentPage, setCurrentPage] = useState(0);
+  
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["weddingNews", currentPage],
+    queryFn: () => fetchNews(currentPage),
     staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
     gcTime: 30 * 60 * 1000, // Keep unused data in cache for 30 minutes
-    refetchOnWindowFocus: false, // Disable automatic refetching when window regains focus
+    refetchOnWindowFocus: false,
   });
+
+  const handleNextPage = () => {
+    setCurrentPage(prev => prev + 1);
+    // Scroll to top when loading new page
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   if (isLoading) {
     return (
@@ -90,7 +113,7 @@ const Index = () => {
           </p>
         </header>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {articles?.map((article, index) => (
+          {data?.articles?.map((article, index) => (
             <div
               key={article.link}
               className="animate-fadeIn"
@@ -100,6 +123,18 @@ const Index = () => {
             </div>
           ))}
         </div>
+        {data?.hasMore && (
+          <div className="flex justify-center mt-8">
+            <Button
+              onClick={handleNextPage}
+              className="group"
+              variant="outline"
+            >
+              Load More Articles
+              <ChevronRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -35,9 +35,7 @@ Deno.serve(async (req) => {
     }
 
     const data = await response.json()
-    console.log('SERP API response type:', typeof data)
-    console.log('SERP API response keys:', Object.keys(data))
-
+    
     if (!data.news_results) {
       console.error('No news_results found in response:', JSON.stringify(data))
       throw new Error('No news results found in API response')
@@ -48,7 +46,32 @@ Deno.serve(async (req) => {
     const articles = data.news_results.map((result: any) => {
       console.log('-------------------')
       console.log(`Processing article: ${result.title}`)
-      console.log('Image field available:', result.thumbnail || 'No thumbnail available')
+      
+      // Try to find the best quality image from multiple possible fields
+      let bestImage = null;
+      
+      // Check original_image first (highest quality)
+      if (result.original_image) {
+        console.log('Found original_image')
+        bestImage = result.original_image;
+      }
+      // Then try large_image
+      else if (result.large_image) {
+        console.log('Found large_image')
+        bestImage = result.large_image;
+      }
+      // Then try source_image
+      else if (result.source_image) {
+        console.log('Found source_image')
+        bestImage = result.source_image;
+      }
+      // Finally fall back to thumbnail
+      else if (result.thumbnail) {
+        console.log('Falling back to thumbnail')
+        bestImage = result.thumbnail;
+      }
+      
+      console.log('Selected image:', bestImage || 'No image found')
       
       return {
         title: result.title,
@@ -56,12 +79,12 @@ Deno.serve(async (req) => {
         snippet: result.snippet,
         source: result.source,
         published: result.date,
-        image: result.thumbnail
+        image: bestImage
       }
     })
 
     console.log('Successfully processed articles')
-    console.log('Articles with thumbnails:', articles.map(a => ({
+    console.log('Articles with images:', articles.map(a => ({
       title: a.title,
       image: a.image ? 'Yes' : 'No'
     })))

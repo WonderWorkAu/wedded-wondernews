@@ -24,7 +24,7 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
             <img
               src={article.image}
               alt={article.title}
-              className="absolute inset-0 w-full h-full object-contain"
+              className="absolute inset-0 w-full h-full object-cover"
               loading="lazy"
               onError={handleImageError}
             />

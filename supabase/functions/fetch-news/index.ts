@@ -181,7 +181,8 @@ Deno.serve(async (req) => {
     
     if (shouldFetch || articles.length === 0) {
       console.log('Fetching new articles from SERP API...')
-      const newsResults = await fetchFromSerpApi('wedding news celebrity marriage', 15)
+      // Updated search query to focus on wedding news
+      const newsResults = await fetchFromSerpApi('wedding news', 15)
       const updatedArticles = await processAndStoreArticles(newsResults)
       await updateLastRunTime()
       
@@ -223,3 +224,4 @@ Deno.serve(async (req) => {
     })
   }
 })
+

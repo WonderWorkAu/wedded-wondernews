@@ -103,16 +103,31 @@ async function processAndStoreArticles(newsResults: any[]) {
         console.log('Optimized Google image from:', oldUrl, 'to:', bestImage);
       }
 
-      // Ensure the image URL is valid
-      try {
-        const imageResponse = await fetch(bestImage, { method: 'HEAD' });
-        if (!imageResponse.ok) {
-          console.log('Image URL not accessible:', bestImage);
-          bestImage = result.thumbnail; // Fallback to thumbnail
+      // For SerpAPI images, use their proxy to avoid CORS issues
+      if (bestImage && bestImage.includes('serpapi.com')) {
+        console.log('Using SerpAPI image:', bestImage);
+        // The SerpAPI URL already includes CORS headers, so we can use it directly
+      } else if (bestImage) {
+        // For non-SerpAPI images, try to validate the URL
+        try {
+          const imageResponse = await fetch(bestImage, { 
+            method: 'HEAD',
+            headers: {
+              'Accept': 'image/*'
+            }
+          });
+          
+          if (!imageResponse.ok) {
+            console.log('Image URL not accessible:', bestImage);
+            // Try to fall back to thumbnail
+            bestImage = result.thumbnail;
+            console.log('Falling back to thumbnail:', bestImage);
+          }
+        } catch (error) {
+          console.log('Error checking image URL:', error);
+          bestImage = result.thumbnail;
+          console.log('Falling back to thumbnail due to error:', bestImage);
         }
-      } catch (error) {
-        console.log('Error checking image URL:', error);
-        bestImage = result.thumbnail; // Fallback to thumbnail
       }
 
       const article = {

@@ -45,6 +45,7 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
         setIsLoading(false);
       };
       img.src = article.image;
+      img.crossOrigin = 'anonymous';  
     } else {
       console.log('No image available for article:', article.title);
       setImageError(true);
@@ -77,6 +78,8 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
                 loading="eager"
                 onError={handleImageError}
                 onLoad={() => setIsLoading(false)}
+                crossOrigin="anonymous"  
+                referrerPolicy="no-referrer"  
               />
               {isLoading && (
                 <div className="absolute inset-0 flex items-center justify-center">

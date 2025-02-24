@@ -1,3 +1,4 @@
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 
@@ -36,7 +37,7 @@ async function fetchFromSerpApi(query: string, numResults: number) {
     num: numResults.toString(),
     hl: 'en',
     gl: 'us',
-    tbs: 'qdr:w,nws:1'  // News from the past week with images
+    tbs: 'qdr:m,nws:1'  // News from the past month with images
   })
 
   const url = `${SERP_API_URL}?${params}`
@@ -103,33 +104,6 @@ async function processAndStoreArticles(newsResults: any[]) {
         console.log('Optimized Google image from:', oldUrl, 'to:', bestImage);
       }
 
-      // For SerpAPI images, use their proxy to avoid CORS issues
-      if (bestImage && bestImage.includes('serpapi.com')) {
-        console.log('Using SerpAPI image:', bestImage);
-        // The SerpAPI URL already includes CORS headers, so we can use it directly
-      } else if (bestImage) {
-        // For non-SerpAPI images, try to validate the URL
-        try {
-          const imageResponse = await fetch(bestImage, { 
-            method: 'HEAD',
-            headers: {
-              'Accept': 'image/*'
-            }
-          });
-          
-          if (!imageResponse.ok) {
-            console.log('Image URL not accessible:', bestImage);
-            // Try to fall back to thumbnail
-            bestImage = result.thumbnail;
-            console.log('Falling back to thumbnail:', bestImage);
-          }
-        } catch (error) {
-          console.log('Error checking image URL:', error);
-          bestImage = result.thumbnail;
-          console.log('Falling back to thumbnail due to error:', bestImage);
-        }
-      }
-
       const article = {
         title: result.title,
         link: result.link,
@@ -140,12 +114,6 @@ async function processAndStoreArticles(newsResults: any[]) {
         created_at: new Date().toISOString(),
         is_archived: false
       }
-
-      console.log('Final article data:', {
-        title: article.title,
-        image: article.image,
-        source: article.source
-      });
 
       // Store article in database
       const { error } = await supabase
@@ -158,11 +126,6 @@ async function processAndStoreArticles(newsResults: any[]) {
       }
 
       articles.push(article)
-      
-      // Break if we have enough articles
-      if (articles.length >= 10) {
-        break;
-      }
     } catch (error) {
       console.error('Error processing article:', error)
       continue
@@ -178,16 +141,18 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log('Starting news fetch process...')
+    console.log('Starting bulk news fetch process...')
     
-    // Always perform SERP API search as requested
-    console.log('Fetching news from SERP API...')
-    const newsResults = await fetchFromSerpApi('wedding news celebrity marriage', 15)
+    // Fetch 50 news articles
+    console.log('Fetching 50 news articles from SERP API...')
+    const newsResults = await fetchFromSerpApi('wedding news celebrity marriage luxury bridal', 50)
+    console.log(`Retrieved ${newsResults.length} news results from API`)
+    
     const articles = await processAndStoreArticles(newsResults)
+    console.log(`Successfully processed and stored ${articles.length} articles`)
     
-    // Return the processed articles
     return new Response(JSON.stringify({
-      articles: articles.slice(0, 10),
+      articles,
       status: 'success'
     }), {
       headers: {

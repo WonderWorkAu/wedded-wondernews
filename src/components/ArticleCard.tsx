@@ -12,6 +12,9 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
   const [imageSource, setImageSource] = useState<string | undefined>(article.image);
 
   useEffect(() => {
+    // Reset error state when image source changes
+    setImageError(false);
+    
     if (article.image) {
       // For Google images, ensure we're requesting the highest quality
       if (article.image.includes('googleusercontent.com')) {
@@ -43,7 +46,9 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
                 className="absolute inset-0 w-full h-full object-cover"
                 style={{ 
                   objectFit: 'cover',
-                  imageRendering: '-webkit-optimize-contrast'
+                  imageRendering: 'auto',
+                  WebkitBackfaceVisibility: 'hidden',
+                  MozBackfaceVisibility: 'hidden'
                 }}
                 loading="eager"
                 onError={handleImageError}
@@ -56,7 +61,10 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
           </div>
         ) : (
           <div className="h-64 bg-gray-100 flex items-center justify-center group-hover:bg-gray-200 transition-colors duration-300">
-            <span className="text-gray-400 font-medium">No image available</span>
+            <div className="text-center">
+              <span className="text-gray-400 font-medium block">Loading image...</span>
+              <span className="text-gray-300 text-sm">{article.source}</span>
+            </div>
           </div>
         )}
         <CardHeader className="font-playfair text-xl font-semibold line-clamp-2">

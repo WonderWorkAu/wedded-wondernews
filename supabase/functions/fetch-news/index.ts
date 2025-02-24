@@ -64,55 +64,63 @@ async function processAndStoreArticles(newsResults: any[]) {
       // Get the best quality image available
       let bestImage = null;
       
-      // Check for original high-res image first
+      // Try each image source in order of quality
       if (result.original_image) {
         bestImage = result.original_image;
-        // If it's a Google image, request the highest quality
-        if (bestImage.includes('googleusercontent.com')) {
-          bestImage = bestImage.replace(/=.*$/, '=s1200-c');
-        }
-      }
-      // Then try source image
-      else if (result.source_image) {
+      } else if (result.source_image) {
         bestImage = result.source_image;
-        if (bestImage.includes('googleusercontent.com')) {
-          bestImage = bestImage.replace(/=.*$/, '=s1200-c');
-        }
-      }
-      // Then try large image
-      else if (result.large_image) {
+      } else if (result.large_image) {
         bestImage = result.large_image;
-        if (bestImage.includes('googleusercontent.com')) {
-          bestImage = bestImage.replace(/=.*$/, '=s1200-c');
-        }
-      }
-      
-      // Skip articles without good quality images
-      if (!bestImage) {
-        console.log('Skipping article due to lack of high-quality image:', result.title);
-        continue;
+      } else if (result.thumbnail) {
+        bestImage = result.thumbnail;
       }
 
-      // Try to fetch the article content to get the og:image
-      try {
-        const articleResponse = await fetch(result.link);
-        const html = await articleResponse.text();
-        const ogImageMatch = html.match(/<meta[^>]+property="og:image"[^>]+content="([^">]+)"/i);
-        if (ogImageMatch && ogImageMatch[1] && ogImageMatch[1].startsWith('http')) {
-          bestImage = ogImageMatch[1];
-        }
-      } catch (error) {
-        console.log('Failed to fetch og:image, using SERP image instead:', error);
+      // For Google images, request high quality version
+      if (bestImage && bestImage.includes('googleusercontent.com')) {
+        bestImage = bestImage.replace(/=.*$/, '=s1200-c');
       }
-      
-      // Process the article
+
+      // If we still don't have an image, try to get one from the article
+      if (!bestImage) {
+        try {
+          const articleResponse = await fetch(result.link);
+          const html = await articleResponse.text();
+          
+          // Try og:image first
+          const ogImageMatch = html.match(/<meta[^>]+property="og:image"[^>]+content="([^">]+)"/i);
+          if (ogImageMatch && ogImageMatch[1] && ogImageMatch[1].startsWith('http')) {
+            bestImage = ogImageMatch[1];
+          }
+          
+          // If no og:image, try to find the first large image in the article
+          if (!bestImage) {
+            const imgMatches = html.match(/<img[^>]+src="([^">]+)"[^>]*>/g);
+            if (imgMatches) {
+              for (const imgTag of imgMatches) {
+                const srcMatch = imgTag.match(/src="([^">]+)"/);
+                if (srcMatch && srcMatch[1] && 
+                    srcMatch[1].startsWith('http') && 
+                    !srcMatch[1].includes('icon') && 
+                    !srcMatch[1].includes('logo')) {
+                  bestImage = srcMatch[1];
+                  break;
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.log('Failed to fetch article images:', error);
+        }
+      }
+
+      // Use any image we found, don't skip articles without images
       const article = {
         title: result.title,
         link: result.link,
         snippet: result.snippet,
         source: result.source,
         published,
-        image: bestImage,
+        image: bestImage || null,  // Store null if no image found
         created_at: new Date().toISOString(),
         is_archived: false
       }
@@ -128,6 +136,11 @@ async function processAndStoreArticles(newsResults: any[]) {
       }
 
       articles.push(article)
+      
+      // Break if we have enough articles
+      if (articles.length >= 10) {
+        break;
+      }
     } catch (error) {
       console.error('Error processing article:', error)
       continue

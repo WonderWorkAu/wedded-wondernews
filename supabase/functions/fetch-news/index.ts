@@ -29,7 +29,7 @@ function convertRelativeTime(timeStr: string): string {
   return date.toISOString()
 }
 
-async function fetchFromSerpApi(query: string, numResults: number) {
+async function fetchFromSerpApi(query: string, numResults: number = 50) {
   const params = new URLSearchParams({
     q: query,
     tbm: 'nws',
@@ -141,11 +141,22 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log('Starting bulk news fetch process...')
+    console.log('Starting news fetch process...')
     
-    // Fetch 50 news articles
-    console.log('Fetching 50 news articles from SERP API...')
-    const newsResults = await fetchFromSerpApi('wedding news celebrity marriage luxury bridal', 50)
+    let query = 'wedding news celebrity marriage luxury bridal'
+    let numResults = 50
+
+    // Check if we have a custom search query
+    if (req.method === 'POST') {
+      const body = await req.json()
+      if (body.query) {
+        query = body.query
+        numResults = body.numResults || 50
+      }
+    }
+    
+    console.log(`Fetching ${numResults} news articles from SERP API for query: ${query}`)
+    const newsResults = await fetchFromSerpApi(query, numResults)
     console.log(`Retrieved ${newsResults.length} news results from API`)
     
     const articles = await processAndStoreArticles(newsResults)

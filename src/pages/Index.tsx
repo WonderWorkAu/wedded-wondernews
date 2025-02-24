@@ -45,15 +45,11 @@ function Index() {
         throw countError;
       }
 
-      setTotalCount(count || 0);
-
       // Then fetch the paginated data with priority for articles with images
       let query = supabase
         .from("news_articles")
         .select("*")
-        // Order by whether there's an image first (non-null images first)
         .order("image", { ascending: false, nullsFirst: false })
-        // Then by created_at date for articles with same image status
         .order("created_at", { ascending: false })
         .range((currentPage - 1) * articlesPerPage, currentPage * articlesPerPage - 1);
 
@@ -66,9 +62,49 @@ function Index() {
       if (error) {
         console.error("Error fetching articles:", error);
         toast.error("Failed to fetch articles. Please try again.");
-      } else {
-        setArticles(data || []);
+        return;
       }
+
+      // If no results found and there's a search query, fetch from SERP API
+      if (data && data.length === 0 && searchQuery) {
+        toast.info("Searching external sources...");
+        try {
+          const { data: serpData, error: serpError } = await supabase.functions.invoke('fetch-news', {
+            method: 'POST',
+            body: {
+              query: `${searchQuery} wedding`,
+              numResults: 2
+            }
+          });
+
+          if (serpError) {
+            throw serpError;
+          }
+
+          // Refetch articles after SERP API results are saved
+          const { data: newData, error: newError } = await supabase
+            .from("news_articles")
+            .select("*")
+            .order("created_at", { ascending: false })
+            .limit(2);
+
+          if (newError) {
+            throw newError;
+          }
+
+          setArticles(newData || []);
+          setTotalCount(newData?.length || 0);
+          toast.success("Found new articles from external sources!");
+          return;
+        } catch (serpErr) {
+          console.error("Error fetching from SERP:", serpErr);
+          toast.error("Failed to fetch external articles. Please try again.");
+          return;
+        }
+      }
+
+      setArticles(data || []);
+      setTotalCount(count || 0);
     } finally {
       setLoading(false);
     }

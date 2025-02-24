@@ -2,7 +2,7 @@
 import { NewsArticle } from "@/types/news";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader } from "./ui/card";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { ImageOff } from "lucide-react";
 
 interface ArticleCardProps {
@@ -11,63 +11,43 @@ interface ArticleCardProps {
 
 export const ArticleCard = ({ article }: ArticleCardProps) => {
   const [imageError, setImageError] = useState(false);
-  const [imageSource, setImageSource] = useState<string | null>(null);
 
-  useEffect(() => {
-    setImageError(false);
+  // Simple function to validate image URL
+  const isValidImageUrl = (url: string): boolean => {
+    return url && 
+      (url.startsWith('http://') || url.startsWith('https://')) && 
+      !url.includes('data:') &&
+      !url.includes('undefined');
+  };
 
-    // Function to validate image URL
-    const isValidImageUrl = (url: string): boolean => {
-      return url && 
-        (url.startsWith('http://') || url.startsWith('https://')) && 
-        !url.includes('data:') &&
-        !url.includes('placeholder') &&
-        !url.includes('undefined');
-    };
+  // Extract first image from content
+  const getContentImage = (): string | null => {
+    if (!article.content) return null;
+    
+    const imgMatch = article.content.match(/<img[^>]+src=["']([^"']+)["']/i);
+    return imgMatch ? imgMatch[1] : null;
+  };
 
-    // Function to extract image from content
-    const extractImageFromContent = (content: string): string | null => {
-      try {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(content, 'text/html');
-        const images = Array.from(doc.querySelectorAll('img'));
-        
-        // Find first valid image
-        const validImage = images.find(img => {
-          const src = img.getAttribute('src');
-          return src && isValidImageUrl(src) && !src.includes('badge') && !src.includes('icon');
-        });
-
-        return validImage?.getAttribute('src') || null;
-      } catch (error) {
-        console.error('Error parsing content:', error);
-        return null;
-      }
-    };
-
-    // Try to get image from content first
-    if (article.content) {
-      const contentImage = extractImageFromContent(article.content);
-      if (contentImage) {
-        setImageSource(contentImage);
-        return;
-      }
+  // Get the best available image source
+  const getImageSource = (): string | null => {
+    // Try content image first
+    const contentImage = getContentImage();
+    if (contentImage && isValidImageUrl(contentImage)) {
+      return contentImage;
     }
 
     // Fallback to article.image
     if (article.image && isValidImageUrl(article.image)) {
-      // Enhance Google image URLs if present
-      if (article.image.includes('googleusercontent.com')) {
-        setImageSource(article.image.replace(/=.*$/, '=s1200'));
-      } else {
-        setImageSource(article.image);
-      }
-    } else {
-      setImageError(true);
+      return article.image;
     }
-  }, [article.image, article.content]);
+
+    return null;
+  };
+
+  const imageSource = getImageSource();
 
   const handleImageError = () => {
+    console.log('Image failed to load:', imageSource);
     setImageError(true);
   };
 
@@ -80,7 +60,7 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
               <img
                 src={imageSource}
                 alt={article.title}
-                className="h-full w-auto max-w-none"
+                className="h-full w-full object-cover"
                 onError={handleImageError}
                 loading="eager"
                 crossOrigin="anonymous"

@@ -11,6 +11,7 @@ interface ArticleCardProps {
 
 export const ArticleCard = ({ article }: ArticleCardProps) => {
   const [imageError, setImageError] = useState(false);
+  const [useProxy, setUseProxy] = useState(false);
 
   // Simple function to validate image URL
   const isValidImageUrl = (url: string): boolean => {
@@ -46,9 +47,26 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
 
   const imageSource = getImageSource();
 
+  // Get the final image URL, using proxy if needed
+  const getFinalImageUrl = () => {
+    if (!imageSource) return null;
+    if (useProxy) {
+      // Using ImageKit.io as a proxy (free tier)
+      return `https://ik.imagekit.io/demo/tr:n-ik_ml_thumbnail/${encodeURIComponent(imageSource)}`;
+    }
+    return imageSource;
+  };
+
   const handleImageError = () => {
     console.log('Image failed to load:', imageSource);
-    setImageError(true);
+    if (!useProxy) {
+      // Try loading with proxy on first error
+      setUseProxy(true);
+      setImageError(false);
+    } else {
+      // If proxy also fails, show error state
+      setImageError(true);
+    }
   };
 
   return (
@@ -58,13 +76,11 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
           {imageSource && !imageError ? (
             <div className="w-full h-full flex items-center justify-center bg-gray-100">
               <img
-                src={imageSource}
+                src={getFinalImageUrl() || ''}
                 alt={article.title}
                 className="h-full w-full object-cover"
                 onError={handleImageError}
                 loading="eager"
-                crossOrigin="anonymous"
-                referrerPolicy="no-referrer"
               />
             </div>
           ) : (

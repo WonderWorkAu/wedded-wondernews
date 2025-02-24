@@ -10,10 +10,10 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Get URL from query parameter
-    const url = new URL(req.url).searchParams.get('url')
+    // Get URL from request body
+    const { url } = await req.json()
     if (!url) {
-      throw new Error('URL parameter is required')
+      throw new Error('URL is required in request body')
     }
 
     console.log('Fetching article content from:', url)

@@ -1,4 +1,3 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 
@@ -80,6 +79,22 @@ async function fetchFromSerpApi(query: string, numResults: number) {
 async function processAndStoreArticles(newsResults: any[]) {
   const articles = []
   for (const result of newsResults) {
+    // Check if article is already indexed
+    const { data: existingArticle } = await supabase
+      .from('news_articles')
+      .select('*')
+      .eq('link', result.link)
+      .single()
+
+    if (existingArticle) {
+      console.log('Article already indexed:', result.title)
+      articles.push(existingArticle)
+      continue
+    }
+
+    // Article not indexed, process and store it
+    console.log('Processing new article:', result.title)
+    
     // Try to get high quality image from the article first
     const articleImage = await extractBestImage(result.link)
     
@@ -134,6 +149,7 @@ async function getRecentArticles() {
   return articles
 }
 
+// Function to check if we should fetch new articles
 async function shouldFetchNewArticles(): Promise<boolean> {
   const { data: config, error } = await supabase
     .from('search_config')
@@ -173,33 +189,15 @@ Deno.serve(async (req) => {
   try {
     console.log('Starting news fetch process...')
     
-    // First try to get recent articles from database
-    const articles = await getRecentArticles()
+    // Always perform SERP API search to get latest news
+    console.log('Fetching news from SERP API...')
+    const newsResults = await fetchFromSerpApi('wedding news', 15)
+    const articles = await processAndStoreArticles(newsResults)
+    await updateLastRunTime()
     
-    // Check if we need to fetch new articles
-    const shouldFetch = await shouldFetchNewArticles()
-    
-    if (shouldFetch || articles.length === 0) {
-      console.log('Fetching new articles from SERP API...')
-      // Updated search query to focus on wedding news
-      const newsResults = await fetchFromSerpApi('wedding news', 15)
-      const updatedArticles = await processAndStoreArticles(newsResults)
-      await updateLastRunTime()
-      
-      return new Response(JSON.stringify({
-        articles: updatedArticles.slice(0, 10),
-        status: 'success'
-      }), {
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        }
-      })
-    }
-
-    console.log('Returning cached articles from database')
+    // Return the processed articles
     return new Response(JSON.stringify({
-      articles,
+      articles: articles.slice(0, 10),
       status: 'success'
     }), {
       headers: {
@@ -224,4 +222,3 @@ Deno.serve(async (req) => {
     })
   }
 })
-

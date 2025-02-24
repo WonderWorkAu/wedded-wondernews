@@ -1,4 +1,3 @@
-
 import { useQuery } from "@tanstack/react-query";
 import { NewsArticle } from "@/types/news";
 import { ArticleCard } from "@/components/ArticleCard";
@@ -20,7 +19,7 @@ const fetchNews = async (page: number): Promise<{ articles: NewsArticle[], hasMo
     .from('news_articles')
     .select('*', { count: 'exact' })
     .eq('is_archived', false)
-    .neq('source', 'BuzzFeed')  // Exclude Buzzfeed articles
+    .neq('source', 'BuzzFeed')
     .order('published', { ascending: false })
     .range(from, to);
 
@@ -29,8 +28,37 @@ const fetchNews = async (page: number): Promise<{ articles: NewsArticle[], hasMo
     throw dbError;
   }
 
+  // For each article, fetch fresh content if we don't have it
+  const articlesWithContent = await Promise.all((dbArticles || []).map(async (article) => {
+    if (!article.content) {
+      console.log(`Fetching fresh content for article: ${article.title}`);
+      try {
+        const { data, error } = await supabase.functions.invoke('fetch-article', {
+          body: { url: article.link }
+        });
+        
+        if (!error && data?.content) {
+          // Update the article content in the database
+          const { error: updateError } = await supabase
+            .from('news_articles')
+            .update({ content: data.content })
+            .eq('link', article.link);
+
+          if (updateError) {
+            console.error('Error updating article content:', updateError);
+          }
+
+          return { ...article, content: data.content };
+        }
+      } catch (error) {
+        console.error(`Error fetching content for article ${article.title}:`, error);
+      }
+    }
+    return article;
+  }));
+
   // If we have no articles in the database or it's the first page, try fetching new ones
-  if ((dbArticles?.length === 0 && page === 0) || !dbArticles) {
+  if ((articlesWithContent.length === 0 && page === 0) || !articlesWithContent) {
     console.log('No articles in database, fetching from API...');
     const { data, error } = await supabase.functions.invoke('fetch-news');
     
@@ -57,8 +85,8 @@ const fetchNews = async (page: number): Promise<{ articles: NewsArticle[], hasMo
   // Calculate if there are more articles to load
   const hasMore = count ? count > (page + 1) * ARTICLES_PER_PAGE : false;
 
-  console.log(`Retrieved ${dbArticles.length} articles from database. Has more: ${hasMore}`);
-  return { articles: dbArticles, hasMore };
+  console.log(`Retrieved ${articlesWithContent.length} articles with content. Has more: ${hasMore}`);
+  return { articles: articlesWithContent, hasMore };
 };
 
 const Index = () => {

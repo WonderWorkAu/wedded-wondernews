@@ -1,4 +1,3 @@
-
 import { NewsArticle } from "@/types/news";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader } from "./ui/card";
@@ -21,28 +20,63 @@ export const ArticleCard = ({ article }: ArticleCardProps) => {
       !url.includes('undefined');
   };
 
-  // Extract first image from content with higher quality preference
+  // Enhanced function to extract highest quality image from content
   const getContentImage = (): string | null => {
     if (!article.content) return null;
     
-    // First try to find high-res images
-    const highResMatch = article.content.match(/<img[^>]+src=["']([^"']+)["'][^>]*(?:data-high-res-src=["'][^"']+["']|class=["'][^"']*high-res[^"']*["'])[^>]*>/i);
-    if (highResMatch) return highResMatch[1];
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = article.content;
     
-    // Then try to find any image that looks like a featured/header image
-    const featuredMatch = article.content.match(/<img[^>]+src=["']([^"']+)["'][^>]*(?:class=["'][^"']*(?:featured|header|hero|main)[^"']*["'])[^>]*>/i);
-    if (featuredMatch) return featuredMatch[1];
+    const images = Array.from(tempDiv.getElementsByTagName('img'));
     
-    // Finally, fall back to the first image that's large enough
-    const imgMatches = article.content.matchAll(/<img[^>]+src=["']([^"']+)["'][^>]*>/gi);
-    for (const match of imgMatches) {
-      const url = match[1];
-      if (url && !url.includes('icon') && !url.includes('logo') && !url.includes('avatar')) {
-        return url;
+    // First, try to find data-original or high-res versions
+    const highResImage = images.find(img => 
+      img.getAttribute('data-original') || 
+      img.getAttribute('data-high-res-src') ||
+      img.className.includes('high-res')
+    );
+    
+    if (highResImage) {
+      const highResSrc = highResImage.getAttribute('data-original') || 
+                        highResImage.getAttribute('data-high-res-src') || 
+                        highResImage.getAttribute('src');
+      if (highResSrc && isValidImageUrl(highResSrc)) return highResSrc;
+    }
+    
+    // Then try to find the largest image by dimensions
+    let largestImage = null;
+    let maxSize = 0;
+    
+    for (const img of images) {
+      const src = img.getAttribute('src');
+      if (!src || !isValidImageUrl(src)) continue;
+      
+      const width = parseInt(img.getAttribute('width') || '0');
+      const height = parseInt(img.getAttribute('height') || '0');
+      const size = width * height;
+      
+      // Skip tiny images (likely icons)
+      if (size > 0 && size > maxSize && Math.min(width, height) > 100) {
+        maxSize = size;
+        largestImage = src;
       }
     }
     
-    return null;
+    if (largestImage) return largestImage;
+    
+    // Finally, try to find an image that looks like a featured image
+    const featuredImage = images.find(img => {
+      const className = img.className.toLowerCase();
+      const src = img.getAttribute('src');
+      return src && 
+        isValidImageUrl(src) && 
+        (className.includes('featured') || 
+         className.includes('header') || 
+         className.includes('hero') || 
+         className.includes('main'));
+    });
+    
+    return featuredImage ? featuredImage.getAttribute('src') || null : null;
   };
 
   // Get the best available image source
